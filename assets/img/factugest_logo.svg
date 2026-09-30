@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1261C9"/>
+      <stop offset="1" stop-color="#0A3F93"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#20C997"/>
+      <stop offset="1" stop-color="#00A878"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon -->
+  <circle cx="600" cy="440" r="300" fill="url(#blue)" opacity=".98"/>
+  <circle cx="600" cy="440" r="265" fill="#fff"/>
+
+  <!-- Invoice/document -->
+  <path d="M390 205h275l105 105v340H390z" fill="#fff" stroke="url(#blue)" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M665 205v105h105" fill="none" stroke="url(#blue)" stroke-width="24" stroke-linejoin="round"/>
+
+  <!-- Dollar -->
+  <text x="435" y="390" font-family="Arial, Helvetica, sans-serif" font-size="125" font-weight="700" fill="#1261C9">$</text>
+
+  <!-- Invoice lines -->
+  <rect x="575" y="315" width="135" height="22" rx="11" fill="#1261C9"/>
+  <rect x="435" y="405" width="270" height="22" rx="11" fill="#1261C9"/>
+  <rect x="435" y="470" width="170" height="20" rx="10" fill="#AFC4DA"/>
+  <rect x="435" y="525" width="120" height="20" rx="10" fill="#AFC4DA"/>
+
+  <!-- Growth bars -->
+  <rect x="565" y="625" width="55" height="80" rx="10" fill="url(#green)"/>
+  <rect x="635" y="575" width="55" height="130" rx="10" fill="url(#green)"/>
+  <rect x="705" y="515" width="55" height="190" rx="10" fill="url(#green)"/>
+
+  <!-- Growth arrow -->
+  <path d="M520 650 C610 620 670 570 735 470" fill="none" stroke="#14B889" stroke-width="28" stroke-linecap="round"/>
+  <path d="M700 475 L750 430 L765 500 Z" fill="#14B889"/>
+
+  <!-- Brand -->
+  <text x="600" y="920" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="104" font-weight="800">
+    <tspan fill="#123F83">Factu</tspan><tspan fill="#10B981">Gest</tspan>
+  </text>
+  <text x="600" y="990" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" letter-spacing="3" fill="#60758A">
+    FACTURACIÓN Y GESTIÓN
+  </text>
+</svg>
