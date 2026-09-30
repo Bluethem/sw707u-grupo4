@@ -83,3 +83,14 @@ Las líneas base se miden en el proceso actual; no se inventan aquí.
 | Tiempo de emisión a CDR | Desde la emisión hasta la respuesta de SUNAT |
 | Incidencias de sobreventa | Ventas fallidas o inconsistentes por stock |
 | Volumen diario/mensual | Comprobantes emitidos por periodo |
+
+# Referencias
+
+**Normativa y portales de SUNAT**
+
+1. SUNAT. *Boleta de Venta* (Tipos de comprobantes, Portal CPE). https://cpe.sunat.gob.pe/tipos_de_comprobantes/boleta
+2. SUNAT. *Comprobantes desde los sistemas del contribuyente* (SEE-Del Contribuyente). https://cpe.sunat.gob.pe/noticias/comprobantes-desde-los-sistemas-del-contribuyente
+3. SUNAT. *Operatividad* (Orientación SUNAT). https://orientacion.sunat.gob.pe/3529-operatividad
+4. SUNAT. *Concepto y características: Boleta de Venta Electrónica desde SEE Contribuyente*. https://orientacion.sunat.gob.pe/node/711
+5. SUNAT. *Concepto y características: Emisión Electrónica desde los Sistemas del Contribuyente*. https://orientacion.sunat.gob.pe/node/708
+6. SUNAT. Resolución de Superintendencia N.° 114-2019/SUNAT (modifica la normativa sobre la boleta de venta electrónica y las notas vinculadas). https://ww3.sunat.gob.pe/legislacion/superin/2019/114-2019.pdf
