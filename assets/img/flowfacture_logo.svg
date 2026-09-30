@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1261C9"/>
+      <stop offset="1" stop-color="#0878E8"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#20C997"/>
+      <stop offset="1" stop-color="#00A878"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="1200" fill="#fff"/>
+
+  <!-- Documento -->
+  <path d="M365 190h350l105 105v365H365z"
+        fill="#fff" stroke="url(#blue)" stroke-width="26"
+        stroke-linejoin="round"/>
+  <path d="M715 190v105h105" fill="none"
+        stroke="url(#blue)" stroke-width="26"
+        stroke-linejoin="round"/>
+
+  <!-- Símbolo monetario -->
+  <text x="415" y="390"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="130" font-weight="700" fill="#1261C9">$</text>
+
+  <!-- Líneas de factura -->
+  <rect x="575" y="310" width="155" height="24" rx="12" fill="#1261C9"/>
+  <rect x="415" y="405" width="320" height="24" rx="12" fill="#1261C9"/>
+  <rect x="415" y="475" width="190" height="22" rx="11" fill="#AFC4DA"/>
+  <rect x="415" y="535" width="135" height="22" rx="11" fill="#AFC4DA"/>
+
+  <!-- Barras -->
+  <rect x="595" y="630" width="65" height="80" rx="12" fill="url(#green)"/>
+  <rect x="680" y="580" width="65" height="130" rx="12" fill="url(#green)"/>
+  <rect x="765" y="510" width="65" height="200" rx="12" fill="url(#green)"/>
+
+  <!-- Flujo / crecimiento -->
+  <path d="M480 665 C620 630 735 555 850 435"
+        fill="none" stroke="url(#green)" stroke-width="30"
+        stroke-linecap="round"/>
+  <path d="M815 440 L870 390 L882 465 Z" fill="#12B886"/>
+
+  <!-- Swoosh -->
+  <path d="M345 425 C265 560 325 720 530 770 C675 805 790 770 850 725
+           C700 755 560 745 450 685 C350 630 310 520 345 425Z"
+        fill="url(#blue)"/>
+
+  <!-- Nombre -->
+  <text x="600" y="930" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="105" font-weight="800">
+    <tspan fill="#123F83">Flow</tspan><tspan fill="#10B981">Facture</tspan>
+  </text>
+
+  <!-- Subtítulo -->
+  <text x="600" y="1000" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="36" letter-spacing="2" fill="#60758A">
+    Facturación y Gestión
+  </text>
+</svg>

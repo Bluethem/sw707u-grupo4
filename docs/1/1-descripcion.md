@@ -1,7 +1,7 @@
 # 1. Descripción del Proceso
 
 <div align="center">
-  <img src="../../assets/img/factugest_logo.png" alt="Logo FactuGest" width="250">
+  <img src="../../assets/img/flowfacture_logo.png" alt="Logo FactuGest" width="250">
 </div>
 
 **Proceso elegido:** Emisión de comprobantes de pago electrónicos (boletas y facturas) en punto de venta, con control básico de inventario.
