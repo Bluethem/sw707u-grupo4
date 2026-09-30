@@ -3,7 +3,7 @@
 > Sistema de gestión y facturación electronica
 
 <div align="center">
-  <img src="../../assets/img/factugest_logo.png" alt="Logo FactuGest" width="250">
+  <img src="/assets/img/factugest_logo.png" alt="Logo FactuGest" width="250">
 </div>
 
 * **Curso:** Construcción de Software 2
