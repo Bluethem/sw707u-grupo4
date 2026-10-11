@@ -1,0 +1,40 @@
+:root {
+  --bg: #0f1419;
+  --fg: #e8eef2;
+  --accent: #3d9b7a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(circle at 20% 20%, #1a2833, var(--bg));
+  color: var(--fg);
+}
+
+main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  letter-spacing: -0.03em;
+  margin: 0 0 0.5rem;
+}
+
+p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.accent {
+  color: var(--accent);
+}

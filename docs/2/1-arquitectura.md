@@ -3,7 +3,14 @@
 > [!NOTE]
 > Las decisiones de diseño que sustentan esta arquitectura se encuentran en la carpeta de [ADRs](./ADRS/).
 
-Este documento describe la arquitectura de **FlowFlacture** (Sistema de Gestión y Facturación Electrónica) usando el modelo **C4**, que permite explicar el sistema en cuatro niveles de detalle, del más general al más específico:
+**ADRs vigentes**
+
+1. [001 — Selección de tecnología](./ADRS/001-seleccion-tecnologia.md)
+2. [002 — Monolito modular](./ADRS/002-monolito-modular.md)
+3. [003 — Outbox en PostgreSQL](./ADRS/003-outbox-postgres.md)
+4. [004 — Secretos cifrados](./ADRS/004-secretos-cifrados.md)
+
+Este documento describe la arquitectura de **FlowFacture** (Sistema de Gestión y Facturación Electrónica) usando el modelo **C4**, que permite explicar el sistema en cuatro niveles de detalle, del más general al más específico:
 
 | Nivel | Diagrama | Pregunta que responde |
 |---|---|---|
@@ -34,7 +41,7 @@ Este documento describe la arquitectura de **FlowFlacture** (Sistema de Gestión
 
 **Sistemas externos**
 
-| Sistema | Relación con FlowFlacture |
+| Sistema | Relación con FlowFacture |
 |---|---|
 | **SUNAT / OSE** | Recibe comprobantes, resúmenes diarios y bajas; valida el XML UBL 2.1 y devuelve la constancia de recepción (CDR). |
 | **Servicio de consulta RUC/DNI** | Autocompleta los datos del cliente (opcional; si no está disponible se ingresa a mano). |
