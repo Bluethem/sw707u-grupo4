@@ -49,6 +49,7 @@ func run() error {
 		postgres.NewEmpresaRepository(pool),
 		postgres.NewUsuarioRepository(pool),
 		postgres.NewSeriesGestionRepository(pool),
+		postgres.NewClienteRepository(pool),
 	)
 	ruc := getenv("SEED_RUC", defaultRUC)
 	razonSocial := getenv("SEED_RAZON_SOCIAL", defaultRazonSocial)

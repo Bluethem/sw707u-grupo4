@@ -62,6 +62,61 @@ type Serie struct {
 	Activa    bool
 }
 
+const (
+	TipoDocDNI = "DNI"
+	TipoDocRUC = "RUC"
+)
+
+type Cliente struct {
+	ID            string
+	EmpresaID     string
+	TipoDoc       string
+	Numero        string
+	RazonSocial   string
+	Direccion     string
+	Correo        string
+	Activo        bool
+	CreadoEn      time.Time
+	ActualizadoEn time.Time
+}
+
+func ValidarCliente(c Cliente) error {
+	switch c.TipoDoc {
+	case TipoDocDNI:
+		if len(c.Numero) != 8 || !soloDigitos(c.Numero) {
+			return fmt.Errorf("%w: DNI invalido", ErrInvalido)
+		}
+	case TipoDocRUC:
+		if err := facturacion.ValidarRUC(c.Numero); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalido, err)
+		}
+	default:
+		return fmt.Errorf("%w: tipo_doc invalido", ErrInvalido)
+	}
+	if strings.TrimSpace(c.RazonSocial) == "" {
+		return fmt.Errorf("%w: razon social requerida", ErrInvalido)
+	}
+	if strings.TrimSpace(c.Direccion) == "" {
+		return fmt.Errorf("%w: direccion requerida", ErrInvalido)
+	}
+	correo := strings.TrimSpace(c.Correo)
+	if correo != "" {
+		if err := ValidarEmail(correo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func soloDigitos(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func ValidarEmpresa(empresa Empresa) error {
 	if err := facturacion.ValidarRUC(empresa.RUC); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalido, err)

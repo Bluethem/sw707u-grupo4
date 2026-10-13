@@ -65,7 +65,7 @@ func newHarness(t *testing.T) *harness {
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE TABLE
 			outbox_envios, comprobante_lineas, comprobantes, productos_stock,
-			series_correlativos, usuarios, empresas
+			series_correlativos, clientes, usuarios, empresas
 		RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("limpiar Postgres: %v", err)
 	}
@@ -89,7 +89,8 @@ func newHarness(t *testing.T) *harness {
 	empresas := postgres.NewEmpresaRepository(pool)
 	usuarios := postgres.NewUsuarioRepository(pool)
 	series := postgres.NewSeriesGestionRepository(pool)
-	gestion := gestionapp.NewService(empresas, usuarios, series)
+	clientes := postgres.NewClienteRepository(pool)
+	gestion := gestionapp.NewService(empresas, usuarios, series, clientes)
 	sessions := redisadapter.NewSessionStore(redisClient, time.Hour)
 	comprobantes := postgres.NewComprobante()
 	emisor := &factapp.Emisor{

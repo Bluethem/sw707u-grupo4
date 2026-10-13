@@ -87,3 +87,39 @@ curl -sS -X POST "$API_BASE/api/v1/comprobantes" \
 ```
 
 Repetir la misma `Idempotency-Key` devuelve el mismo comprobante con HTTP 200.
+
+## Clientes (`/api/v1/clientes`)
+
+Requiere API en marcha, Postgres y Redis. Tras autenticarte, crea, lista, obtiene y actualiza clientes:
+
+```bash
+export API_BASE='http://127.0.0.1:8080'
+TOKEN=$(curl -sS -X POST "$API_BASE/api/v1/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@flowfacture.local","password":"Admin123!"}' \
+  | jq -r .token)
+
+curl -sS -X POST "$API_BASE/api/v1/clientes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "tipo_doc": "DNI",
+    "numero": "12345678",
+    "razon_social": "Juan Pérez",
+    "direccion": "Av. Lima 100",
+    "correo": "juan@example.com"
+  }'
+
+curl -sS "$API_BASE/api/v1/clientes?limit=20&activo=true" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS "$API_BASE/api/v1/clientes/<CLIENTE_ID>" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS -X PATCH "$API_BASE/api/v1/clientes/<CLIENTE_ID>" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"razon_social": "Juan Actualizado", "activo": false}'
+```
+
+`PATCH` no permite cambiar `tipo_doc` ni `numero`. Con `activo: false` el cliente deja de aparecer en listados con `activo=true`, pero sigue accesible por id.
