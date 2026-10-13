@@ -46,3 +46,5 @@ pnpm dev
 ```
 
 Documentación de producto: `docs/1/`. Arquitectura: `docs/2/`. Diseño de arranque: `docs/superpowers/specs/2026-10-10-flowfacture-monolito-modular-design.md`.
+
+Tests de facturación (ciclo 2): ver [`src/backend/README.md`](src/backend/README.md).
