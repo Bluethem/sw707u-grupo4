@@ -9,6 +9,7 @@
 2. [002 — Monolito modular](./ADRS/002-monolito-modular.md)
 3. [003 — Outbox en PostgreSQL](./ADRS/003-outbox-postgres.md)
 4. [004 — Secretos cifrados](./ADRS/004-secretos-cifrados.md)
+5. [005 — Sesiones en Redis](./ADRS/005-sesiones-redis.md)
 
 Este documento describe la arquitectura de **FlowFacture** (Sistema de Gestión y Facturación Electrónica) usando el modelo **C4**, que permite explicar el sistema en cuatro niveles de detalle, del más general al más específico:
 
