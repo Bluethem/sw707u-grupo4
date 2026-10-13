@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -28,4 +29,16 @@ func (f *Fake) Get(key string) ([]byte, bool) {
 	defer f.mu.RUnlock()
 	b, ok := f.data[key]
 	return b, ok
+}
+
+func (f *Fake) Leer(_ context.Context, key string) ([]byte, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	b, ok := f.data[key]
+	if !ok {
+		return nil, fmt.Errorf("storage fake: %q no encontrado", key)
+	}
+	cp := make([]byte, len(b))
+	copy(cp, b)
+	return cp, nil
 }

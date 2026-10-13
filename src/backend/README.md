@@ -169,3 +169,42 @@ curl -sS "$API_BASE/api/v1/productos/<PRODUCTO_ID>/movimientos?limit=20" \
 ```
 
 `PATCH` no permite cambiar `codigo` ni `controla_stock`. Los ajustes `salida` con cantidad mayor al saldo responden HTTP 409.
+
+## Worker M6 (outbox → SUNAT fake)
+
+El worker consume `outbox_envios` y actualiza el estado del comprobante. **No requiere Redis** (solo `DATABASE_URL`).
+
+Variables útiles:
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `WORKER_POLL_INTERVAL` | `1s` | Pausa entre ciclos |
+| `WORKER_BATCH_SIZE` | `10` | Jobs por `RunOnce` |
+| `WORKER_MAX_INTENTOS` | `5` | Reintentos antes de `failed` |
+| `WORKER_BACKOFF_BASE` | `1s` | Base del backoff exponencial |
+| `SUNAT_FAKE_MODE` | `accept` | `accept`, `reject` o `error` (simulación local) |
+
+```bash
+export DATABASE_URL='postgres://ff:ff@127.0.0.1:55432/flowfacture?sslmode=disable'
+export SUNAT_FAKE_MODE=accept
+go run ./cmd/worker
+```
+
+Con Docker Compose: `docker compose up -d postgres worker` (el servicio `worker` ya define `SUNAT_FAKE_MODE=accept`).
+
+Tras emitir un comprobante (API), el worker lo procesa hasta `ACEPTADO`/`RECHAZADO` según el modo fake.
+
+### Tests M6 (worker + outbox)
+
+Suite recomendada (Postgres `:55432`, Redis `/1` para apitest):
+
+```bash
+export PATH=$HOME/.local/go-install/go/bin:$PATH
+export DATABASE_URL='postgres://ff:ff@127.0.0.1:55432/flowfacture?sslmode=disable'
+export REDIS_URL='redis://127.0.0.1:6379/1'
+cd src/backend
+go test ./internal/apitest/ ./internal/facturacion/... ./adapters/postgres/ ./adapters/sunat/ ./internal/platform/config/ -count=1 -p 1
+go build ./cmd/worker/ ./cmd/api/
+```
+
+Incluye E2E `TestE2E_EmitirYAceptarSUNATFake` (emite vía HTTP y corre `ProcesadorEnvio.RunOnce` en el harness).

@@ -37,6 +37,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
+	if err := cfg.ValidateAPI(); err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)

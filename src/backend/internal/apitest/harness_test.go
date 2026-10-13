@@ -17,6 +17,7 @@ import (
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/postgres/migrate"
 	redisadapter "github.com/Bluethem/sw707u-grupo4/src/backend/adapters/redis"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/storage"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/sunat"
 	factapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/app"
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
@@ -29,6 +30,7 @@ type harness struct {
 	server   *httptest.Server
 	pool     *pgxpool.Pool
 	redis    *redislib.Client
+	storage  *storage.Fake
 	gestion  *gestionapp.Service
 	usuarios *postgres.UsuarioRepository
 	sessions *redisadapter.SessionStore
@@ -94,11 +96,12 @@ func newHarness(t *testing.T) *harness {
 	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
 	sessions := redisadapter.NewSessionStore(redisClient, time.Hour)
 	comprobantes := postgres.NewComprobante()
+	blobStore := storage.NewFake()
 	emisor := &factapp.Emisor{
 		UoW: postgres.NewUnitOfWork(pool), Stock: postgres.NewStock(),
 		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series: postgres.NewSeries(), Comps: comprobantes, Outbox: postgres.NewOutbox(),
-		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: storage.NewFake(),
+		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: blobStore,
 	}
 	server := httptest.NewServer(httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
@@ -107,8 +110,20 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(server.Close)
 
 	return &harness{
-		server: server, pool: pool, redis: redisClient, gestion: gestion,
+		server: server, pool: pool, redis: redisClient, storage: blobStore, gestion: gestion,
 		usuarios: usuarios, sessions: sessions,
+	}
+}
+
+func (h *harness) newProcesadorEnvio(mode sunat.Mode) *factapp.ProcesadorEnvio {
+	return &factapp.ProcesadorEnvio{
+		Outbox:       postgres.NewOutboxConsumer(h.pool),
+		Comprobantes: postgres.NewComprobanteQuery(h.pool),
+		Storage:      h.storage,
+		Sunat:        sunat.NewFake(mode),
+		BatchSize:    10,
+		MaxIntentos:  5,
+		BackoffBase:  time.Second,
 	}
 }
 

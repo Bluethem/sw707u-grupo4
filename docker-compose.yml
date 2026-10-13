@@ -53,6 +53,7 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://ff:ff@postgres:5432/flowfacture?sslmode=disable}
+      SUNAT_FAKE_MODE: ${SUNAT_FAKE_MODE:-accept}
     depends_on:
       postgres:
         condition: service_healthy

@@ -47,8 +47,44 @@ type ComprobanteQuery interface {
 	List(ctx context.Context, empresaID string, f ListFilter) (items []domain.Comprobante, total int, err error)
 }
 
+// ComprobanteEnvioStore lectura/actualizacion de estado para el worker de envio.
+type ComprobanteEnvioStore interface {
+	GetByComprobanteID(ctx context.Context, id string) (*domain.Comprobante, error)
+	UpdateEstado(ctx context.Context, id string, estado domain.EstadoComprobante) error
+}
+
 type OutboxPublisher interface {
 	EnqueueEnvio(ctx context.Context, tx Tx, comprobanteID string) error
+}
+
+type OutboxJob struct {
+	ID             int64
+	ComprobanteID  string
+	TipoTrabajo    string
+	Estado         string
+	Intentos       int
+	DisponibleEn   time.Time
+	CreadoEn       time.Time
+	UltimoError    string
+	ActualizadoEn  time.Time
+}
+
+type OutboxConsumer interface {
+	Claim(ctx context.Context, limit int) ([]OutboxJob, error)
+	Complete(ctx context.Context, jobID int64) error
+	Retry(ctx context.Context, jobID int64, intentos int, disponibleEn time.Time, errMsg string) error
+	Fail(ctx context.Context, jobID int64, errMsg string) error
+}
+
+type SunatResult struct {
+	Aceptado bool
+	Codigo   string
+	Mensaje  string
+	CDR      []byte
+}
+
+type SunatGateway interface {
+	Enviar(ctx context.Context, comprobanteID string, xml []byte) (SunatResult, error)
 }
 
 type FirmaPort interface {
@@ -61,4 +97,5 @@ type PdfPort interface {
 
 type StoragePort interface {
 	Guardar(ctx context.Context, key string, data []byte) error
+	Leer(ctx context.Context, key string) ([]byte, error)
 }
