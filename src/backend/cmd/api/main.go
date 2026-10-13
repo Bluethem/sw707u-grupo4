@@ -11,9 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/firma"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/pdf"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/postgres"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/postgres/migrate"
 	redisadapter "github.com/Bluethem/sw707u-grupo4/src/backend/adapters/redis"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/storage"
+	factapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/app"
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/platform/config"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/platform/httpapi"
@@ -64,8 +68,22 @@ func run() error {
 	series := postgres.NewSeriesGestionRepository(pool)
 	gestion := gestionapp.NewService(empresas, usuarios, series)
 	sessions := redisadapter.NewSessionStore(redisClient, cfg.SessionTTL)
+
+	comprobantes := postgres.NewComprobante()
+	emisor := &factapp.Emisor{
+		UoW:     postgres.NewUnitOfWork(pool),
+		Stock:   postgres.NewStock(),
+		Series:  postgres.NewSeries(),
+		Comps:   comprobantes,
+		Outbox:  postgres.NewOutbox(),
+		Firma:   firma.Fake{},
+		PDF:     pdf.Fake{},
+		Storage: storage.NewFake(),
+	}
+	query := postgres.NewComprobanteQuery(pool)
 	handler := httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
+		Emisor: emisor, Query: query,
 	})
 
 	server := &http.Server{

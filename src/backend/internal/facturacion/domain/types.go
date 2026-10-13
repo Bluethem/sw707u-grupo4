@@ -21,6 +21,7 @@ var (
 	ErrClienteRequerido    = fmt.Errorf("cliente/documento requerido")
 	ErrRUCInvalido         = fmt.Errorf("RUC invalido")
 	ErrStockInsuficiente   = fmt.Errorf("stock insuficiente")
+	ErrSerieNoEncontrada   = fmt.Errorf("serie no encontrada")
 	ErrLineasVacias        = fmt.Errorf("lineas vacias")
 	ErrIdempotencyKeyVacia = fmt.Errorf("idempotency key vacia")
 )

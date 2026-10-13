@@ -11,9 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/firma"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/pdf"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/postgres"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/postgres/migrate"
 	redisadapter "github.com/Bluethem/sw707u-grupo4/src/backend/adapters/redis"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/storage"
+	factapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/app"
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/platform/httpapi"
@@ -87,8 +91,15 @@ func newHarness(t *testing.T) *harness {
 	series := postgres.NewSeriesGestionRepository(pool)
 	gestion := gestionapp.NewService(empresas, usuarios, series)
 	sessions := redisadapter.NewSessionStore(redisClient, time.Hour)
+	comprobantes := postgres.NewComprobante()
+	emisor := &factapp.Emisor{
+		UoW: postgres.NewUnitOfWork(pool), Stock: postgres.NewStock(),
+		Series: postgres.NewSeries(), Comps: comprobantes, Outbox: postgres.NewOutbox(),
+		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: storage.NewFake(),
+	}
 	server := httptest.NewServer(httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
+		Emisor: emisor, Query: postgres.NewComprobanteQuery(pool),
 	}))
 	t.Cleanup(server.Close)
 
@@ -132,7 +143,38 @@ func (h *harness) SeedEmpresaAdmin(t *testing.T) seedData {
 	}
 }
 
+func (h *harness) SeedEmisionReady(t *testing.T) seedData {
+	t.Helper()
+	seed := h.SeedEmpresaAdmin(t)
+	ctx := context.Background()
+	if _, err := h.pool.Exec(ctx, `
+		INSERT INTO productos_stock (empresa_id, producto_id, cantidad)
+		VALUES ($1, 'p1', 10)`,
+		seed.EmpresaID,
+	); err != nil {
+		t.Fatalf("seed stock de emision: %v", err)
+	}
+	if _, err := h.pool.Exec(ctx, `
+		INSERT INTO series_correlativos (empresa_id, tipo, serie, siguiente, activa)
+		VALUES ($1, 'boleta', 'B001', 1, true)`,
+		seed.EmpresaID,
+	); err != nil {
+		t.Fatalf("seed serie de emision: %v", err)
+	}
+	return seed
+}
+
 func (h *harness) request(t *testing.T, method, path, token string, body any) *http.Response {
+	t.Helper()
+	return h.requestWithHeaders(t, method, path, token, body, nil)
+}
+
+func (h *harness) requestWithHeaders(
+	t *testing.T,
+	method, path, token string,
+	body any,
+	headers map[string]string,
+) *http.Response {
 	t.Helper()
 	var reader io.Reader
 	if body != nil {
@@ -151,6 +193,9 @@ func (h *harness) request(t *testing.T, method, path, token string, body any) *h
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for name, value := range headers {
+		req.Header.Set(name, value)
 	}
 	res, err := h.server.Client().Do(req)
 	if err != nil {

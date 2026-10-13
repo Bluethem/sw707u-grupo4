@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/domain"
 )
@@ -28,6 +29,22 @@ type SeriesRepository interface {
 type ComprobanteRepository interface {
 	GetByIdempotencyKey(ctx context.Context, tx Tx, empresaID, key string) (*domain.Comprobante, error)
 	Insert(ctx context.Context, tx Tx, c *domain.Comprobante) error
+}
+
+type ListFilter struct {
+	FechaDesde *time.Time
+	FechaHasta *time.Time
+	Tipo       string
+	Estado     string
+	Limit      int
+	Offset     int
+}
+
+type ComprobanteQuery interface {
+	// GetByID retorna (nil, nil) cuando el comprobante no existe para la empresa.
+	GetByID(ctx context.Context, empresaID, id string) (*domain.Comprobante, error)
+	// List retorna cabeceras sin lineas. FechaDesde y FechaHasta son dias inclusivos.
+	List(ctx context.Context, empresaID string, f ListFilter) (items []domain.Comprobante, total int, err error)
 }
 
 type OutboxPublisher interface {
