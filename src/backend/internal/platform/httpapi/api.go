@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/redis"
+	factapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/app"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/ports"
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
 	platformauth "github.com/Bluethem/sw707u-grupo4/src/backend/internal/platform/auth"
@@ -25,16 +27,23 @@ type Dependencies struct {
 	Gestion  *gestionapp.Service
 	Usuarios gestionapp.UsuarioRepository
 	Sessions SessionStore
+	Emisor   *factapp.Emisor
+	Query    ports.ComprobanteQuery
 }
 
 type API struct {
 	gestion  *gestionapp.Service
 	usuarios gestionapp.UsuarioRepository
 	sessions SessionStore
+	emisor   *factapp.Emisor
+	query    ports.ComprobanteQuery
 }
 
 func NewAPIHandler(deps Dependencies) http.Handler {
-	api := &API{gestion: deps.Gestion, usuarios: deps.Usuarios, sessions: deps.Sessions}
+	api := &API{
+		gestion: deps.Gestion, usuarios: deps.Usuarios, sessions: deps.Sessions,
+		emisor: deps.Emisor, query: deps.Query,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", api.health)
 	mux.HandleFunc("POST /api/v1/auth/login", api.login)
@@ -45,6 +54,9 @@ func NewAPIHandler(deps Dependencies) http.Handler {
 	}
 	mux.Handle("POST /api/v1/auth/logout", authenticated(http.HandlerFunc(api.logout)))
 	mux.Handle("GET /api/v1/auth/me", authenticated(http.HandlerFunc(api.me)))
+	mux.Handle("POST /api/v1/comprobantes", authenticated(http.HandlerFunc(api.emitirComprobante)))
+	mux.Handle("GET /api/v1/comprobantes/{id}", authenticated(http.HandlerFunc(api.obtenerComprobante)))
+	mux.Handle("GET /api/v1/comprobantes", authenticated(http.HandlerFunc(api.listarComprobantes)))
 	mux.Handle("GET /api/v1/empresas/me", admin(api.obtenerEmpresa))
 	mux.Handle("PATCH /api/v1/empresas/me", admin(api.actualizarEmpresa))
 	mux.Handle("POST /api/v1/usuarios", admin(api.crearUsuario))

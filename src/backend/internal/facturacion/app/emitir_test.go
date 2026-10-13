@@ -53,9 +53,12 @@ func comando(key string, cantidad int64) app.EmitirComando {
 func TestEmitir_Feliz(t *testing.T) {
 	seed(t, 10)
 
-	got, err := nuevoEmisor(pdf.Fake{}).Emitir(context.Background(), comando("feliz", 2))
+	got, created, err := nuevoEmisor(pdf.Fake{}).Emitir(context.Background(), comando("feliz", 2))
 	if err != nil {
 		t.Fatalf("Emitir: %v", err)
+	}
+	if !created {
+		t.Fatal("created = false; want true")
 	}
 	if got.Estado != domain.EstadoPendiente {
 		t.Fatalf("estado = %q; want %q", got.Estado, domain.EstadoPendiente)
@@ -74,7 +77,7 @@ func TestEmitir_Feliz(t *testing.T) {
 func TestEmitir_StockInsuficiente(t *testing.T) {
 	seed(t, 1)
 
-	_, err := nuevoEmisor(pdf.Fake{}).Emitir(context.Background(), comando("sin-stock", 5))
+	_, _, err := nuevoEmisor(pdf.Fake{}).Emitir(context.Background(), comando("sin-stock", 5))
 	if !errors.Is(err, domain.ErrStockInsuficiente) {
 		t.Fatalf("error = %v; want ErrStockInsuficiente", err)
 	}
@@ -91,13 +94,19 @@ func TestEmitir_Idempotencia(t *testing.T) {
 	emisor := nuevoEmisor(pdf.Fake{})
 	cmd := comando("misma-key", 2)
 
-	primero, err := emisor.Emitir(context.Background(), cmd)
+	primero, created, err := emisor.Emitir(context.Background(), cmd)
 	if err != nil {
 		t.Fatalf("primera emision: %v", err)
 	}
-	segundo, err := emisor.Emitir(context.Background(), cmd)
+	if !created {
+		t.Fatal("primera emision: created = false; want true")
+	}
+	segundo, created, err := emisor.Emitir(context.Background(), cmd)
 	if err != nil {
 		t.Fatalf("segunda emision: %v", err)
+	}
+	if created {
+		t.Fatal("segunda emision: created = true; want false")
 	}
 	if primero.ID != segundo.ID {
 		t.Fatalf("IDs distintos: %q != %q", primero.ID, segundo.ID)
@@ -113,7 +122,7 @@ func TestEmitir_Idempotencia(t *testing.T) {
 func TestEmitir_PdfFallaNoRevierte(t *testing.T) {
 	seed(t, 10)
 
-	got, err := nuevoEmisor(pdfConError{}).Emitir(context.Background(), comando("pdf-falla", 2))
+	got, _, err := nuevoEmisor(pdfConError{}).Emitir(context.Background(), comando("pdf-falla", 2))
 	if err != nil {
 		t.Fatalf("Emitir debe ignorar error de PDF post-commit: %v", err)
 	}

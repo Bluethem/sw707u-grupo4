@@ -38,18 +38,17 @@ type Emisor struct {
 	NewID   func() string
 }
 
-func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (*domain.Comprobante, error) {
+func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (c *domain.Comprobante, created bool, err error) {
 	if cmd.IdempotencyKey == "" {
-		return nil, domain.ErrIdempotencyKeyVacia
+		return nil, false, domain.ErrIdempotencyKeyVacia
 	}
 	if len(cmd.Lineas) == 0 {
-		return nil, domain.ErrLineasVacias
+		return nil, false, domain.ErrLineasVacias
 	}
 
 	var comprobante *domain.Comprobante
-	creado := false
 
-	err := e.UoW.WithinTransaction(ctx, func(ctx context.Context, tx ports.Tx) error {
+	err = e.UoW.WithinTransaction(ctx, func(ctx context.Context, tx ports.Tx) error {
 		existente, err := e.Comps.GetByIdempotencyKey(ctx, tx, cmd.EmpresaID, cmd.IdempotencyKey)
 		if err != nil {
 			return err
@@ -103,16 +102,16 @@ func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (*domain.Comprob
 		if err := e.Outbox.EnqueueEnvio(ctx, tx, comprobante.ID); err != nil {
 			return err
 		}
-		creado = true
+		created = true
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if creado {
+	if created {
 		e.generarRepresentaciones(ctx, comprobante)
 	}
-	return comprobante, nil
+	return comprobante, created, nil
 }
 
 func calcularLineas(lineas []EmitirLinea) ([]domain.LineaComprobante, domain.TotalesLinea, error) {

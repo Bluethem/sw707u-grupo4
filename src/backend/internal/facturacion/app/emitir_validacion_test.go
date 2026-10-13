@@ -13,7 +13,7 @@ func TestEmitir_RechazaComandoInvalido(t *testing.T) {
 	emisor := &Emisor{}
 
 	t.Run("idempotency key vacia", func(t *testing.T) {
-		_, err := emisor.Emitir(context.Background(), EmitirComando{
+		_, _, err := emisor.Emitir(context.Background(), EmitirComando{
 			EmpresaID: "e1",
 			Lineas: []EmitirLinea{{
 				ProductoID:     "p1",
@@ -28,7 +28,7 @@ func TestEmitir_RechazaComandoInvalido(t *testing.T) {
 	})
 
 	t.Run("lineas vacias", func(t *testing.T) {
-		_, err := emisor.Emitir(context.Background(), EmitirComando{
+		_, _, err := emisor.Emitir(context.Background(), EmitirComando{
 			EmpresaID:      "e1",
 			IdempotencyKey: "k1",
 		})
