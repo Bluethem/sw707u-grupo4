@@ -45,11 +45,14 @@ func run() error {
 		return fmt.Errorf("ejecutar migraciones: %w", err)
 	}
 
+	productos := postgres.NewProductoRepository(pool)
 	service := gestionapp.NewService(
 		postgres.NewEmpresaRepository(pool),
 		postgres.NewUsuarioRepository(pool),
 		postgres.NewSeriesGestionRepository(pool),
 		postgres.NewClienteRepository(pool),
+		productos,
+		productos,
 	)
 	ruc := getenv("SEED_RUC", defaultRUC)
 	razonSocial := getenv("SEED_RAZON_SOCIAL", defaultRazonSocial)
