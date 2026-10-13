@@ -1,0 +1,52 @@
+name: Backend E2E tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go-test-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ff
+          POSTGRES_PASSWORD: ff
+          POSTGRES_DB: flowfacture_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ff -d flowfacture_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://ff:ff@127.0.0.1:5432/flowfacture_test?sslmode=disable
+      REDIS_URL: redis://127.0.0.1:6379/1
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: src/backend/go.sum
+      - name: Run E2E tests
+        run: go test ./internal/apitest/ -run 'TestE2E_' -count=1

@@ -37,6 +37,8 @@ func TestUp(t *testing.T) {
 		"comprobantes",
 		"comprobante_lineas",
 		"outbox_envios",
+		"empresas",
+		"usuarios",
 	}
 	for _, table := range tables {
 		var exists bool

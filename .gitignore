@@ -8,3 +8,6 @@ coverage
 *.exe
 bin/
 vendor/
+
+# local go binaries
+src/backend/seed
