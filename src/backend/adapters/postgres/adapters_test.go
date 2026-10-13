@@ -18,4 +18,5 @@ func TestAdaptersImplementPorts(t *testing.T) {
 	var _ gestionapp.UsuarioRepository = (*UsuarioRepository)(nil)
 	var _ gestionapp.SerieRepository = (*SeriesGestionRepository)(nil)
 	var _ gestionapp.ClienteRepository = (*ClienteRepository)(nil)
+	var _ gestionapp.ProductoRepository = (*ProductoRepository)(nil)
 }

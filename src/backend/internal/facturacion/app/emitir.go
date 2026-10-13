@@ -27,15 +27,16 @@ type EmitirLinea struct {
 }
 
 type Emisor struct {
-	UoW     ports.UnitOfWork
-	Stock   ports.StockPort
-	Series  ports.SeriesRepository
-	Comps   ports.ComprobanteRepository
-	Outbox  ports.OutboxPublisher
-	Firma   ports.FirmaPort
-	PDF     ports.PdfPort
-	Storage ports.StoragePort
-	NewID   func() string
+	UoW       ports.UnitOfWork
+	Stock     ports.StockPort
+	Productos ProductoConsulta
+	Series    ports.SeriesRepository
+	Comps     ports.ComprobanteRepository
+	Outbox    ports.OutboxPublisher
+	Firma     ports.FirmaPort
+	PDF       ports.PdfPort
+	Storage   ports.StoragePort
+	NewID     func() string
 }
 
 func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (c *domain.Comprobante, created bool, err error) {
@@ -66,12 +67,26 @@ func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (c *domain.Compr
 			return err
 		}
 
-		stock := make([]ports.StockLinea, len(cmd.Lineas))
-		for i, linea := range cmd.Lineas {
-			stock[i] = ports.StockLinea{ProductoID: linea.ProductoID, Cantidad: linea.Cantidad}
+		var stock []ports.StockLinea
+		for _, linea := range cmd.Lineas {
+			if e.Productos == nil {
+				return fmt.Errorf("producto consulta no configurado")
+			}
+			controla, activo, err := e.Productos.ObtenerParaEmision(ctx, cmd.EmpresaID, linea.ProductoID)
+			if err != nil {
+				return err
+			}
+			if !activo {
+				return domain.ErrProductoInactivo
+			}
+			if controla {
+				stock = append(stock, ports.StockLinea{ProductoID: linea.ProductoID, Cantidad: linea.Cantidad})
+			}
 		}
-		if err := e.Stock.Descontar(ctx, tx, cmd.EmpresaID, stock); err != nil {
-			return err
+		if len(stock) > 0 {
+			if err := e.Stock.Descontar(ctx, tx, cmd.EmpresaID, stock); err != nil {
+				return err
+			}
 		}
 		numero, err := e.Series.SiguienteNumero(ctx, tx, cmd.EmpresaID, cmd.Tipo, cmd.Serie)
 		if err != nil {

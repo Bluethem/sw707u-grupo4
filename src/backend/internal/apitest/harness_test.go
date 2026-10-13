@@ -64,8 +64,8 @@ func newHarness(t *testing.T) *harness {
 	}
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE TABLE
-			outbox_envios, comprobante_lineas, comprobantes, productos_stock,
-			series_correlativos, clientes, usuarios, empresas
+			outbox_envios, comprobante_lineas, comprobantes, stock_movimientos,
+			productos_stock, productos, series_correlativos, clientes, usuarios, empresas
 		RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("limpiar Postgres: %v", err)
 	}
@@ -90,11 +90,13 @@ func newHarness(t *testing.T) *harness {
 	usuarios := postgres.NewUsuarioRepository(pool)
 	series := postgres.NewSeriesGestionRepository(pool)
 	clientes := postgres.NewClienteRepository(pool)
-	gestion := gestionapp.NewService(empresas, usuarios, series, clientes)
+	productos := postgres.NewProductoRepository(pool)
+	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
 	sessions := redisadapter.NewSessionStore(redisClient, time.Hour)
 	comprobantes := postgres.NewComprobante()
 	emisor := &factapp.Emisor{
 		UoW: postgres.NewUnitOfWork(pool), Stock: postgres.NewStock(),
+		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series: postgres.NewSeries(), Comps: comprobantes, Outbox: postgres.NewOutbox(),
 		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: storage.NewFake(),
 	}
@@ -148,6 +150,14 @@ func (h *harness) SeedEmisionReady(t *testing.T) seedData {
 	t.Helper()
 	seed := h.SeedEmpresaAdmin(t)
 	ctx := context.Background()
+	if _, err := h.pool.Exec(ctx, `
+		INSERT INTO productos (
+			id, empresa_id, codigo, descripcion, unidad, precio, afectacion, controla_stock, activo
+		) VALUES ('p1', $1, 'P1', 'Producto emision test', 'NIU', 118.00, 'gravado', true, true)`,
+		seed.EmpresaID,
+	); err != nil {
+		t.Fatalf("seed producto de emision: %v", err)
+	}
 	if _, err := h.pool.Exec(ctx, `
 		INSERT INTO productos_stock (empresa_id, producto_id, cantidad)
 		VALUES ($1, 'p1', 10)`,

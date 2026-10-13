@@ -23,9 +23,10 @@ func (pdfConError) Generar(context.Context, *domain.Comprobante) ([]byte, error)
 
 func nuevoEmisor(pdfPort ports.PdfPort) *app.Emisor {
 	return &app.Emisor{
-		UoW:     postgresadapter.NewUnitOfWork(testPool),
-		Stock:   postgresadapter.NewStock(),
-		Series:  postgresadapter.NewSeries(),
+		UoW:       postgresadapter.NewUnitOfWork(testPool),
+		Stock:     postgresadapter.NewStock(),
+		Productos: postgresadapter.NewProductoEmisionConsulta(testPool),
+		Series:    postgresadapter.NewSeries(),
 		Comps:   postgresadapter.NewComprobante(),
 		Outbox:  postgresadapter.NewOutbox(),
 		Firma:   firma.Fake{},

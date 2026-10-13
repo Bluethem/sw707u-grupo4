@@ -53,9 +53,21 @@ func seed(t *testing.T, stock int64) {
 	defer tx.Rollback(ctx)
 	// Destructive by design: DATABASE_URL must point to a disposable test database.
 	if _, err = tx.Exec(ctx, `
-		TRUNCATE outbox_envios, comprobante_lineas, comprobantes,
-		         series_correlativos, productos_stock RESTART IDENTITY CASCADE`); err != nil {
+		TRUNCATE outbox_envios, comprobante_lineas, comprobantes, stock_movimientos,
+		         productos_stock, productos, series_correlativos, empresas
+		RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate seed: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO empresas (id, ruc, razon_social)
+		VALUES ('e1', '20100070970', 'Empresa Test SAC')`); err != nil {
+		t.Fatalf("insert empresa seed: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO productos (
+			id, empresa_id, codigo, descripcion, unidad, precio, afectacion, controla_stock, activo
+		) VALUES ('p1', 'e1', 'P1', 'Producto test', 'NIU', 118.00, 'gravado', true, true)`); err != nil {
+		t.Fatalf("insert producto seed: %v", err)
 	}
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO productos_stock(empresa_id, producto_id, cantidad)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/redis"
 	factapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/app"
+	facturaciondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/domain"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/ports"
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
@@ -69,6 +70,12 @@ func NewAPIHandler(deps Dependencies) http.Handler {
 	mux.Handle("POST /api/v1/series", admin(api.crearSerie))
 	mux.Handle("GET /api/v1/series", admin(api.listarSeries))
 	mux.Handle("PATCH /api/v1/series", admin(api.actualizarSerie))
+	mux.Handle("POST /api/v1/productos", admin(api.crearProducto))
+	mux.Handle("PATCH /api/v1/productos/{id}", admin(api.actualizarProducto))
+	mux.Handle("POST /api/v1/productos/{id}/ajustes-stock", admin(api.ajustarStockProducto))
+	mux.Handle("GET /api/v1/productos/{id}/movimientos", admin(api.listarMovimientosProducto))
+	mux.Handle("GET /api/v1/productos", authenticated(http.HandlerFunc(api.listarProductos)))
+	mux.Handle("GET /api/v1/productos/{id}", authenticated(http.HandlerFunc(api.obtenerProducto)))
 	return mux
 }
 
@@ -364,6 +371,8 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "recurso no encontrado")
 	case errors.Is(err, gestiondomain.ErrConflicto):
 		writeError(w, http.StatusConflict, "recurso duplicado")
+	case errors.Is(err, facturaciondomain.ErrStockInsuficiente):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "error interno")
 	}

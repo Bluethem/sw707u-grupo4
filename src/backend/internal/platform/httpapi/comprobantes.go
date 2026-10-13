@@ -239,6 +239,8 @@ func writeFacturacionError(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrRUCInvalido),
 		errors.Is(err, domain.ErrLineasVacias),
 		errors.Is(err, domain.ErrIdempotencyKeyVacia),
+		errors.Is(err, domain.ErrProductoNoEncontrado),
+		errors.Is(err, domain.ErrProductoInactivo),
 		strings.Contains(err.Error(), "DNI invalido"),
 		strings.Contains(err.Error(), "tipo comprobante invalido"),
 		strings.Contains(err.Error(), "afectacion invalida"),

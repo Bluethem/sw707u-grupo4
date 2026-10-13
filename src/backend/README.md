@@ -123,3 +123,49 @@ curl -sS -X PATCH "$API_BASE/api/v1/clientes/<CLIENTE_ID>" \
 ```
 
 `PATCH` no permite cambiar `tipo_doc` ni `numero`. Con `activo: false` el cliente deja de aparecer en listados con `activo=true`, pero sigue accesible por id.
+
+## Catálogo e inventario (`/api/v1/productos`)
+
+Requiere API en marcha, Postgres y Redis. Solo **administrador** puede crear productos, actualizarlos y ajustar stock; **cajero** y **administrador** pueden listar y consultar.
+
+```bash
+export API_BASE='http://127.0.0.1:8080'
+TOKEN=$(curl -sS -X POST "$API_BASE/api/v1/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@flowfacture.local","password":"Admin123!"}' \
+  | jq -r .token)
+
+curl -sS -X POST "$API_BASE/api/v1/productos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "codigo": "SKU-001",
+    "descripcion": "Producto demo",
+    "unidad": "NIU",
+    "precio": "118.00",
+    "afectacion": "gravado",
+    "controla_stock": true,
+    "stock_inicial": 10
+  }'
+
+curl -sS "$API_BASE/api/v1/productos?limit=20&activo=true" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS "$API_BASE/api/v1/productos/<PRODUCTO_ID>" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS -X PATCH "$API_BASE/api/v1/productos/<PRODUCTO_ID>" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"descripcion": "Producto actualizado", "activo": false}'
+
+curl -sS -X POST "$API_BASE/api/v1/productos/<PRODUCTO_ID>/ajustes-stock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"tipo": "entrada", "cantidad": 5, "motivo": "compra"}'
+
+curl -sS "$API_BASE/api/v1/productos/<PRODUCTO_ID>/movimientos?limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`PATCH` no permite cambiar `codigo` ni `controla_stock`. Los ajustes `salida` con cantidad mayor al saldo responden HTTP 409.

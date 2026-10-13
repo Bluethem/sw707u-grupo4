@@ -24,4 +24,6 @@ var (
 	ErrSerieNoEncontrada   = fmt.Errorf("serie no encontrada")
 	ErrLineasVacias        = fmt.Errorf("lineas vacias")
 	ErrIdempotencyKeyVacia = fmt.Errorf("idempotency key vacia")
+	ErrProductoNoEncontrado = fmt.Errorf("producto no encontrado")
+	ErrProductoInactivo     = fmt.Errorf("producto inactivo")
 )
