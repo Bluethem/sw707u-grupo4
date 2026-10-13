@@ -66,7 +66,8 @@ func run() error {
 	empresas := postgres.NewEmpresaRepository(pool)
 	usuarios := postgres.NewUsuarioRepository(pool)
 	series := postgres.NewSeriesGestionRepository(pool)
-	gestion := gestionapp.NewService(empresas, usuarios, series)
+	clientes := postgres.NewClienteRepository(pool)
+	gestion := gestionapp.NewService(empresas, usuarios, series, clientes)
 	sessions := redisadapter.NewSessionStore(redisClient, cfg.SessionTTL)
 
 	comprobantes := postgres.NewComprobante()

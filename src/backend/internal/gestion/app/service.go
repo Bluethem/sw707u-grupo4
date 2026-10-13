@@ -31,14 +31,29 @@ type SerieRepository interface {
 	Actualizar(context.Context, domain.Serie) (domain.Serie, error)
 }
 
+type ClienteRepository interface {
+	Crear(context.Context, domain.Cliente) (domain.Cliente, error)
+	Obtener(context.Context, string, string) (domain.Cliente, error)
+	Listar(context.Context, string, ListarClientesFilter) ([]domain.Cliente, int, error)
+	Actualizar(context.Context, domain.Cliente) (domain.Cliente, error)
+}
+
+type ListarClientesFilter struct {
+	Q      string
+	Activo *bool
+	Limit  int
+	Offset int
+}
+
 type Service struct {
 	empresas EmpresaRepository
 	usuarios UsuarioRepository
 	series   SerieRepository
+	clientes ClienteRepository
 }
 
-func NewService(empresas EmpresaRepository, usuarios UsuarioRepository, series SerieRepository) *Service {
-	return &Service{empresas: empresas, usuarios: usuarios, series: series}
+func NewService(empresas EmpresaRepository, usuarios UsuarioRepository, series SerieRepository, clientes ClienteRepository) *Service {
+	return &Service{empresas: empresas, usuarios: usuarios, series: series, clientes: clientes}
 }
 
 type CrearEmpresaInput struct {
@@ -251,4 +266,89 @@ func (s *Service) ActualizarSerie(ctx context.Context, empresaID string, tipo do
 		serie.Activa = *input.Activa
 	}
 	return s.series.Actualizar(ctx, serie)
+}
+
+type CrearClienteInput struct {
+	TipoDoc     string
+	Numero      string
+	RazonSocial string
+	Direccion   string
+	Correo      string
+}
+
+func (s *Service) CrearCliente(ctx context.Context, empresaID string, input CrearClienteInput) (domain.Cliente, error) {
+	if empresaID == "" {
+		return domain.Cliente{}, fmt.Errorf("%w: empresa requerida", domain.ErrInvalido)
+	}
+	cliente := domain.Cliente{
+		ID:          uuid.NewString(),
+		EmpresaID:   empresaID,
+		TipoDoc:     strings.TrimSpace(input.TipoDoc),
+		Numero:      strings.TrimSpace(input.Numero),
+		RazonSocial: strings.TrimSpace(input.RazonSocial),
+		Direccion:   strings.TrimSpace(input.Direccion),
+		Correo:      strings.TrimSpace(input.Correo),
+		Activo:      true,
+	}
+	if err := domain.ValidarCliente(cliente); err != nil {
+		return domain.Cliente{}, err
+	}
+	return s.clientes.Crear(ctx, cliente)
+}
+
+func (s *Service) ObtenerCliente(ctx context.Context, empresaID, clienteID string) (domain.Cliente, error) {
+	if empresaID == "" || clienteID == "" {
+		return domain.Cliente{}, fmt.Errorf("%w: empresa y cliente requeridos", domain.ErrInvalido)
+	}
+	return s.clientes.Obtener(ctx, empresaID, clienteID)
+}
+
+func (s *Service) ListarClientes(ctx context.Context, empresaID string, f ListarClientesFilter) ([]domain.Cliente, int, error) {
+	if empresaID == "" {
+		return nil, 0, fmt.Errorf("%w: empresa requerida", domain.ErrInvalido)
+	}
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 50
+	} else if limit > 100 {
+		limit = 100
+	}
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	f.Limit = limit
+	f.Offset = offset
+	f.Q = strings.TrimSpace(f.Q)
+	return s.clientes.Listar(ctx, empresaID, f)
+}
+
+type ActualizarClienteInput struct {
+	RazonSocial *string
+	Direccion   *string
+	Correo      *string
+	Activo      *bool
+}
+
+func (s *Service) ActualizarCliente(ctx context.Context, empresaID, clienteID string, input ActualizarClienteInput) (domain.Cliente, error) {
+	cliente, err := s.ObtenerCliente(ctx, empresaID, clienteID)
+	if err != nil {
+		return domain.Cliente{}, err
+	}
+	if input.RazonSocial != nil {
+		cliente.RazonSocial = strings.TrimSpace(*input.RazonSocial)
+	}
+	if input.Direccion != nil {
+		cliente.Direccion = strings.TrimSpace(*input.Direccion)
+	}
+	if input.Correo != nil {
+		cliente.Correo = strings.TrimSpace(*input.Correo)
+	}
+	if input.Activo != nil {
+		cliente.Activo = *input.Activo
+	}
+	if err := domain.ValidarCliente(cliente); err != nil {
+		return domain.Cliente{}, err
+	}
+	return s.clientes.Actualizar(ctx, cliente)
 }
