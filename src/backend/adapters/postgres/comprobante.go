@@ -25,6 +25,42 @@ func NewComprobanteQuery(pool *pgxpool.Pool) *ComprobanteQuery {
 	return &ComprobanteQuery{pool: pool}
 }
 
+func (r *ComprobanteQuery) GetByComprobanteID(ctx context.Context, id string) (*domain.Comprobante, error) {
+	c, err := scanComprobante(r.pool.QueryRow(ctx, `
+		SELECT id, empresa_id, tipo, serie, numero, estado,
+		       cliente_tipo, cliente_numero, cliente_razon,
+		       valor_venta, igv, total, idempotency_key
+		FROM comprobantes
+		WHERE id = $1`,
+		id,
+	))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("obtener comprobante por id: %w", err)
+	}
+	return loadLineas(ctx, r.pool, c)
+}
+
+func (r *ComprobanteQuery) UpdateEstado(
+	ctx context.Context,
+	id string,
+	estado domain.EstadoComprobante,
+) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE comprobantes SET estado = $2 WHERE id = $1`,
+		id, estado,
+	)
+	if err != nil {
+		return fmt.Errorf("actualizar estado comprobante: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("actualizar estado comprobante: %q no encontrado", id)
+	}
+	return nil
+}
+
 func (r *ComprobanteQuery) GetByID(
 	ctx context.Context,
 	empresaID string,
@@ -44,8 +80,15 @@ func (r *ComprobanteQuery) GetByID(
 	if err != nil {
 		return nil, fmt.Errorf("obtener comprobante: %w", err)
 	}
+	return loadLineas(ctx, r.pool, c)
+}
 
-	rows, err := r.pool.Query(ctx, `
+type lineasQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func loadLineas(ctx context.Context, q lineasQuerier, c *domain.Comprobante) (*domain.Comprobante, error) {
+	rows, err := q.Query(ctx, `
 		SELECT producto_id, cantidad, precio_unit, afectacion, valor_venta, igv, total
 		FROM comprobante_lineas
 		WHERE comprobante_id = $1
