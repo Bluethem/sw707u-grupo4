@@ -51,6 +51,7 @@ func seed(t *testing.T, stock int64) {
 		t.Fatalf("begin seed: %v", err)
 	}
 	defer tx.Rollback(ctx)
+	// Destructive by design: DATABASE_URL must point to a disposable test database.
 	if _, err = tx.Exec(ctx, `
 		TRUNCATE outbox_envios, comprobante_lineas, comprobantes,
 		         series_correlativos, productos_stock RESTART IDENTITY CASCADE`); err != nil {

@@ -30,6 +30,11 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// Serialize schema changes across processes/packages sharing the same database.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(70700402)`); err != nil {
+		return fmt.Errorf("lock migrations: %w", err)
+	}
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
