@@ -57,3 +57,33 @@ go test ./internal/facturacion/... ./adapters/postgres/... -count=1
 Sin `DATABASE_URL`, los tests de integración se omiten (skip); los de dominio y las validaciones de `Emitir` en paquete `app` siempre corren.
 
 El DoD del ciclo 2 exige ejecutar la suite completa con base de datos.
+
+## Emisión HTTP (`POST /api/v1/comprobantes`)
+
+Requiere API en marcha, Postgres, Redis y datos de emisión (stock, serie activa).
+Tras el seed M1, autentícate y emite con `Idempotency-Key` obligatoria:
+
+```bash
+export API_BASE='http://127.0.0.1:8080'
+TOKEN=$(curl -sS -X POST "$API_BASE/api/v1/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@flowfacture.local","password":"Admin123!"}' \
+  | jq -r .token)
+
+curl -sS -X POST "$API_BASE/api/v1/comprobantes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-emitir-001' \
+  -d '{
+    "tipo": "boleta",
+    "serie": "B001",
+    "lineas": [{
+      "producto_id": "p1",
+      "cantidad": 1,
+      "precio_unitario": "118.00",
+      "afectacion": "gravado"
+    }]
+  }'
+```
+
+Repetir la misma `Idempotency-Key` devuelve el mismo comprobante con HTTP 200.
