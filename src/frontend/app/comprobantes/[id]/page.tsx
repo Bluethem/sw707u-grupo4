@@ -1,0 +1,260 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { AppNav } from "@/components/shell/AppNav";
+import { RequireAuth } from "@/components/shell/RequireAuth";
+import { Badge, isBadgeStatus } from "@/components/ui/Badge";
+import { ApiError, apiFetch } from "@/lib/api";
+import type { ComprobanteItem } from "@/lib/caja-types";
+import { formatMoneyDecimal } from "@/lib/money";
+
+const cardSurface: React.CSSProperties = {
+  background: "var(--color-pure-white)",
+  borderRadius: "var(--radius-cards)",
+  border: "1px solid var(--color-stone-border)",
+  padding: "var(--spacing-16)",
+  boxShadow: "none",
+};
+
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 12px",
+  fontSize: "12px",
+  fontWeight: "var(--font-weight-medium)",
+  color: "var(--color-warm-gray)",
+  borderBottom: "1px solid var(--color-stone-border)",
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  fontSize: "var(--text-body)",
+  borderBottom: "1px solid var(--color-stone-border)",
+};
+
+function shouldPoll(estado: string): boolean {
+  return estado === "PENDIENTE" || estado === "ENVIADO";
+}
+
+export default function ComprobanteDetallePage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = typeof params.id === "string" ? params.id : "";
+
+  const [comp, setComp] = useState<ComprobanteItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+  const [polling, setPolling] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let pollCount = 0;
+
+    async function refresh(): Promise<ComprobanteItem | null> {
+      try {
+        const data = await apiFetch<ComprobanteItem>(`/api/v1/comprobantes/${encodeURIComponent(id)}`);
+        if (!cancelled) {
+          setComp(data);
+          setError(undefined);
+        }
+        return data;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          router.replace("/login");
+          return null;
+        }
+        if (e instanceof ApiError && e.status === 404) {
+          if (!cancelled) {
+            setError("Comprobante no encontrado");
+            setComp(null);
+          }
+          return null;
+        }
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Error al cargar");
+        }
+        return null;
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void (async () => {
+      setLoading(true);
+      const data = await refresh();
+      if (cancelled || !data || !shouldPoll(data.estado)) {
+        setPolling(false);
+        return;
+      }
+
+      setPolling(true);
+      timer = setInterval(() => {
+        pollCount += 1;
+        if (pollCount >= 10) {
+          if (timer) clearInterval(timer);
+          setPolling(false);
+          return;
+        }
+        void refresh().then((d) => {
+          if (d && !shouldPoll(d.estado)) {
+            if (timer) clearInterval(timer);
+            setPolling(false);
+          }
+        });
+      }, 3000);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [id, router]);
+
+  const cliente = comp?.cliente;
+
+  return (
+    <RequireAuth>
+      <AppNav />
+      <main
+        style={{
+          display: "block",
+          minHeight: "calc(100vh - 57px)",
+          padding: "var(--spacing-16)",
+          maxWidth: "var(--page-max-width)",
+          margin: "0 auto",
+        }}
+      >
+        <p style={{ margin: "0 0 var(--spacing-12)" }}>
+          <Link href="/comprobantes" style={{ color: "var(--color-cyan-edge)", fontSize: "var(--text-body)" }}>
+            ← Comprobantes
+          </Link>
+        </p>
+
+        {loading && !comp ? (
+          <p style={{ color: "var(--color-warm-gray)" }}>Cargando…</p>
+        ) : error && !comp ? (
+          <p style={{ color: "var(--color-error-text)" }}>{error}</p>
+        ) : comp ? (
+          <>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "var(--spacing-12)",
+                marginBottom: "var(--spacing-16)",
+              }}
+            >
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "var(--text-subheading)",
+                  fontFamily: "var(--font-family-display)",
+                  fontWeight: "var(--font-weight-regular)",
+                  textTransform: "capitalize",
+                }}
+              >
+                {comp.tipo} {comp.serie}-{comp.numero}
+              </h1>
+              {isBadgeStatus(comp.estado) ? (
+                <Badge status={comp.estado} />
+              ) : (
+                <span style={{ fontSize: "12px" }}>{comp.estado}</span>
+              )}
+              {polling ? (
+                <span style={{ fontSize: "12px", color: "var(--color-warm-gray)" }}>Actualizando estado…</span>
+              ) : null}
+            </div>
+
+            <div style={{ ...cardSurface, marginBottom: "var(--spacing-16)" }}>
+              <dl
+                style={{
+                  margin: 0,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                  gap: "var(--spacing-12)",
+                  fontSize: "var(--text-body)",
+                }}
+              >
+                <div>
+                  <dt style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>Cliente</dt>
+                  <dd style={{ margin: "4px 0 0" }}>
+                    {cliente ? (
+                      <>
+                        {cliente.razon_social || "—"}
+                        <br />
+                        <span style={{ color: "var(--color-warm-gray)", fontSize: "12px" }}>
+                          {cliente.tipo_doc} {cliente.numero}
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>Valor venta</dt>
+                  <dd style={{ margin: "4px 0 0" }}>{formatMoneyDecimal(comp.valor_venta)}</dd>
+                </div>
+                <div>
+                  <dt style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>IGV</dt>
+                  <dd style={{ margin: "4px 0 0" }}>{formatMoneyDecimal(comp.igv)}</dd>
+                </div>
+                <div>
+                  <dt style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>Total</dt>
+                  <dd style={{ margin: "4px 0 0", fontWeight: "var(--font-weight-semibold)" }}>
+                    {formatMoneyDecimal(comp.total)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div style={{ ...cardSurface, overflowX: "auto" }}>
+              <h2
+                style={{
+                  margin: "0 0 var(--spacing-12)",
+                  fontSize: "var(--text-body-lg)",
+                  fontWeight: "var(--font-weight-medium)",
+                }}
+              >
+                Líneas
+              </h2>
+              {comp.lineas.length === 0 ? (
+                <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Sin líneas.</p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Producto</th>
+                      <th style={thStyle}>Cant.</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>P. unit.</th>
+                      <th style={thStyle}>Afect.</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comp.lineas.map((l, i) => (
+                      <tr key={`${l.producto_id}-${i}`}>
+                        <td style={tdStyle}>
+                          <span style={{ fontFamily: "monospace", fontSize: "12px" }}>{l.producto_id}</span>
+                        </td>
+                        <td style={tdStyle}>{l.cantidad}</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{formatMoneyDecimal(l.precio_unitario)}</td>
+                        <td style={tdStyle}>{l.afectacion}</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{formatMoneyDecimal(l.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        ) : null}
+      </main>
+    </RequireAuth>
+  );
+}
