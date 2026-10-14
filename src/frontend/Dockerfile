@@ -9,6 +9,9 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# URL que usa el navegador (host), no el hostname Docker interno.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm run build
 
 FROM node:22-alpine AS runner
