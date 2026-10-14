@@ -1,12 +1,15 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { isAuthenticated } from "@/lib/auth";
+
 export default function HomePage() {
-  return (
-    <main>
-      <div>
-        <h1>
-          Flow<span className="accent">Facture</span>
-        </h1>
-        <p>Sistema de gestión y facturación electrónica</p>
-      </div>
-    </main>
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace(isAuthenticated() ? "/caja" : "/login");
+  }, [router]);
+
+  return null;
 }

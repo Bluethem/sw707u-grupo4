@@ -89,7 +89,7 @@ func run() error {
 	query := postgres.NewComprobanteQuery(pool)
 	handler := httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
-		Emisor: emisor, Query: query,
+		Emisor: emisor, Query: query, CORSOrigins: cfg.CORSOrigins,
 	})
 
 	server := &http.Server{

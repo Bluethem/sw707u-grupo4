@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	RedisURL       string
 	SessionTTL     time.Duration
 	MigrateOnStart bool
+	CORSOrigins    []string
 
 	WorkerPollInterval time.Duration
 	WorkerBatchSize    int
@@ -57,6 +59,7 @@ func Load() (Config, error) {
 		RedisURL:             os.Getenv("REDIS_URL"),
 		SessionTTL:           ttl,
 		MigrateOnStart:       migrateOnStart,
+		CORSOrigins:          parseCORSOrigins(getenv("CORS_ORIGINS", "http://localhost:3000")),
 		WorkerPollInterval:   pollInterval,
 		WorkerBatchSize:      batchSize,
 		WorkerMaxIntentos:    maxIntentos,
@@ -82,4 +85,19 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseCORSOrigins(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"http://localhost:3000"}
+	}
+	return out
 }

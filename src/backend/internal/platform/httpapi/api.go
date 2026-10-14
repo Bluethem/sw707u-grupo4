@@ -25,11 +25,12 @@ type SessionStore interface {
 }
 
 type Dependencies struct {
-	Gestion  *gestionapp.Service
-	Usuarios gestionapp.UsuarioRepository
-	Sessions SessionStore
-	Emisor   *factapp.Emisor
-	Query    ports.ComprobanteQuery
+	Gestion     *gestionapp.Service
+	Usuarios    gestionapp.UsuarioRepository
+	Sessions    SessionStore
+	Emisor      *factapp.Emisor
+	Query       ports.ComprobanteQuery
+	CORSOrigins []string
 }
 
 type API struct {
@@ -76,7 +77,7 @@ func NewAPIHandler(deps Dependencies) http.Handler {
 	mux.Handle("GET /api/v1/productos/{id}/movimientos", admin(api.listarMovimientosProducto))
 	mux.Handle("GET /api/v1/productos", authenticated(http.HandlerFunc(api.listarProductos)))
 	mux.Handle("GET /api/v1/productos/{id}", authenticated(http.HandlerFunc(api.obtenerProducto)))
-	return mux
+	return withCORS(deps.CORSOrigins, mux)
 }
 
 func (a *API) lookupSession(ctx context.Context, token string) (platformauth.User, error) {
