@@ -106,3 +106,13 @@ pnpm build
 ## Detalle adicional
 
 Ver también `src/backend/README.md` (seed, emisión curl, worker) y contratos en `docs/2/2-apis.md`.
+
+# GitHub Actions
+
+Dentro de la carpeta `.github/worflows` se tiene suites que se corre dentor de github actions para automatizar procesos CI/CD.
+
+| Archivo | Cobertura |
+|---|---|
+| `test-api-backend` | Test de apis individuales |
+| `test-e2e-backend` | Test e2e del backend |
+| `test-unit-backend` | Test unitarios |
