@@ -81,13 +81,26 @@ export function AppNav() {
       >
         Flow<span className="highlight-span">Facture</span>
       </Link>
-      <nav style={{ display: "flex", gap: "var(--spacing-8)" }}>
+      <nav style={{ display: "flex", gap: "var(--spacing-8)", flexWrap: "wrap" }}>
         <Link href="/caja" style={linkStyle("/caja")}>
           Caja
         </Link>
         <Link href="/comprobantes" style={linkStyle("/comprobantes")}>
           Comprobantes
         </Link>
+        {profile?.rol === "administrador" ? (
+          <>
+            <Link href="/admin/productos" style={linkStyle("/admin/productos")}>
+              Productos
+            </Link>
+            <Link href="/admin/clientes" style={linkStyle("/admin/clientes")}>
+              Clientes
+            </Link>
+            <Link href="/admin/series" style={linkStyle("/admin/series")}>
+              Series
+            </Link>
+          </>
+        ) : null}
       </nav>
       {profile ? (
         <span
