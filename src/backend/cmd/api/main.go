@@ -74,9 +74,10 @@ func run() error {
 	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
 	sessions := redisadapter.NewSessionStore(redisClient, cfg.SessionTTL)
 
+	uow := postgres.NewUnitOfWork(pool)
 	comprobantes := postgres.NewComprobante()
 	emisor := &factapp.Emisor{
-		UoW:       postgres.NewUnitOfWork(pool),
+		UoW:       uow,
 		Stock:     postgres.NewStock(),
 		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series:    postgres.NewSeries(),
@@ -87,9 +88,18 @@ func run() error {
 		Storage: storage.NewFake(),
 	}
 	query := postgres.NewComprobanteQuery(pool)
+	comprobanteSvc := &factapp.Comprobantes{
+		UoW: uow, Query: query, Lifecycle: comprobantes,
+		Outbox: postgres.NewOutbox(), OutboxRead: query,
+	}
+	resumenRepo := postgres.NewResumenRepository(pool)
+	resumenSvc := &factapp.Resumenes{
+		UoW: uow, Store: resumenRepo, Outbox: postgres.NewOutbox(),
+	}
 	handler := httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
-		Emisor: emisor, Query: query, CORSOrigins: cfg.CORSOrigins,
+		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc,
+		Resumenes: resumenSvc, CORSOrigins: cfg.CORSOrigins,
 	})
 
 	server := &http.Server{

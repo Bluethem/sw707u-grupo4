@@ -29,7 +29,7 @@ func (r *ComprobanteQuery) GetByComprobanteID(ctx context.Context, id string) (*
 	c, err := scanComprobante(r.pool.QueryRow(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key
+		       valor_venta, igv, total, idempotency_key, baja_motivo
 		FROM comprobantes
 		WHERE id = $1`,
 		id,
@@ -69,7 +69,7 @@ func (r *ComprobanteQuery) GetByID(
 	c, err := scanComprobante(r.pool.QueryRow(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key
+		       valor_venta, igv, total, idempotency_key, baja_motivo
 		FROM comprobantes
 		WHERE id = $1 AND empresa_id = $2`,
 		id, empresaID,
@@ -155,7 +155,7 @@ func (r *ComprobanteQuery) List(
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key`+
+		       valor_venta, igv, total, idempotency_key, baja_motivo`+
 		filtros+`
 		ORDER BY creado_en DESC
 		LIMIT $6 OFFSET $7`,
@@ -190,7 +190,7 @@ func scanComprobante(row rowScanner) (*domain.Comprobante, error) {
 	if err := row.Scan(
 		&c.ID, &c.EmpresaID, &c.Tipo, &c.Serie, &c.Numero, &c.Estado,
 		&clienteTipo, &clienteNumero, &clienteRazon,
-		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey,
+		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey, &c.BajaMotivo,
 	); err != nil {
 		return nil, err
 	}
@@ -225,14 +225,14 @@ func (r *Comprobante) GetByIdempotencyKey(
 	err = tx.QueryRow(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key
+		       valor_venta, igv, total, idempotency_key, baja_motivo
 		FROM comprobantes
 		WHERE empresa_id = $1 AND idempotency_key = $2`,
 		empresaID, key,
 	).Scan(
 		&c.ID, &c.EmpresaID, &c.Tipo, &c.Serie, &c.Numero, &c.Estado,
 		&clienteTipo, &clienteNumero, &clienteRazon,
-		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey,
+		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey, &c.BajaMotivo,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -320,4 +320,60 @@ func (r *Comprobante) Insert(ctx context.Context, transaction ports.Tx, c *domai
 		}
 	}
 	return nil
+}
+
+func (r *ComprobanteQuery) LatestEnvioJob(
+	ctx context.Context,
+	comprobanteID string,
+) (estado, ultimoError string, ok bool, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT estado, ultimo_error FROM outbox_envios
+		WHERE comprobante_id = $1 AND tipo_trabajo = $2
+		ORDER BY id DESC
+		LIMIT 1`,
+		comprobanteID, ports.TipoTrabajoEnvioComprobante,
+	).Scan(&estado, &ultimoError)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, fmt.Errorf("ultimo envio outbox: %w", err)
+	}
+	return estado, ultimoError, true, nil
+}
+
+func (r *Comprobante) MarcarPendienteBaja(
+	ctx context.Context,
+	transaction ports.Tx,
+	empresaID, id, motivo string,
+) error {
+	tx, err := unwrapTx(transaction)
+	if err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE comprobantes
+		SET estado = $4, baja_motivo = $3
+		WHERE id = $1 AND empresa_id = $2`,
+		id, empresaID, motivo, domain.EstadoPendienteBaja,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("marcar pendiente baja: %q no encontrado", id)
+	}
+	return nil
+}
+
+func (r *Comprobante) PonerEstadoPendiente(ctx context.Context, transaction ports.Tx, id string) error {
+	tx, err := unwrapTx(transaction)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE comprobantes SET estado = $2 WHERE id = $1`,
+		id, domain.EstadoPendiente,
+	)
+	return err
 }

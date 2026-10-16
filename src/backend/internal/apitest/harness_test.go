@@ -66,7 +66,8 @@ func newHarness(t *testing.T) *harness {
 	}
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE TABLE
-			outbox_envios, comprobante_lineas, comprobantes, stock_movimientos,
+			outbox_envios, resumen_comprobantes, resumenes_diarios,
+			comprobante_lineas, comprobantes, stock_movimientos,
 			productos_stock, productos, series_correlativos, clientes, usuarios, empresas
 		RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("limpiar Postgres: %v", err)
@@ -95,17 +96,27 @@ func newHarness(t *testing.T) *harness {
 	productos := postgres.NewProductoRepository(pool)
 	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
 	sessions := redisadapter.NewSessionStore(redisClient, time.Hour)
+	uow := postgres.NewUnitOfWork(pool)
 	comprobantes := postgres.NewComprobante()
+	query := postgres.NewComprobanteQuery(pool)
 	blobStore := storage.NewFake()
 	emisor := &factapp.Emisor{
-		UoW: postgres.NewUnitOfWork(pool), Stock: postgres.NewStock(),
+		UoW: uow, Stock: postgres.NewStock(),
 		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series: postgres.NewSeries(), Comps: comprobantes, Outbox: postgres.NewOutbox(),
 		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: blobStore,
 	}
+	comprobanteSvc := &factapp.Comprobantes{
+		UoW: uow, Query: query, Lifecycle: comprobantes,
+		Outbox: postgres.NewOutbox(), OutboxRead: query,
+	}
+	resumenRepo := postgres.NewResumenRepository(pool)
+	resumenSvc := &factapp.Resumenes{
+		UoW: uow, Store: resumenRepo, Outbox: postgres.NewOutbox(),
+	}
 	server := httptest.NewServer(httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
-		Emisor: emisor, Query: postgres.NewComprobanteQuery(pool),
+		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc, Resumenes: resumenSvc,
 	}))
 	t.Cleanup(server.Close)
 
@@ -119,6 +130,7 @@ func (h *harness) newProcesadorEnvio(mode sunat.Mode) *factapp.ProcesadorEnvio {
 	return &factapp.ProcesadorEnvio{
 		Outbox:       postgres.NewOutboxConsumer(h.pool),
 		Comprobantes: postgres.NewComprobanteQuery(h.pool),
+		Resumenes:    postgres.NewResumenRepository(h.pool),
 		Storage:      h.storage,
 		Sunat:        sunat.NewFake(mode),
 		BatchSize:    10,

@@ -37,6 +37,8 @@ func TestUp(t *testing.T) {
 		"comprobantes",
 		"comprobante_lineas",
 		"outbox_envios",
+		"resumenes_diarios",
+		"resumen_comprobantes",
 		"empresas",
 		"usuarios",
 	}

@@ -16,6 +16,8 @@ func TestAdaptersImplementPorts(t *testing.T) {
 	var _ ports.ComprobanteEnvioStore = (*ComprobanteQuery)(nil)
 	var _ ports.OutboxPublisher = (*Outbox)(nil)
 	var _ ports.OutboxConsumer = (*OutboxConsumer)(nil)
+	var _ ports.ComprobanteLifecycle = (*Comprobante)(nil)
+	var _ ports.EnvioOutboxReader = (*ComprobanteQuery)(nil)
 	var _ gestionapp.EmpresaRepository = (*EmpresaRepository)(nil)
 	var _ gestionapp.UsuarioRepository = (*UsuarioRepository)(nil)
 	var _ gestionapp.SerieRepository = (*SeriesGestionRepository)(nil)

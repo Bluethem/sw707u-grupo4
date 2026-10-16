@@ -49,7 +49,7 @@ type ListarClientesFilter struct {
 type ProductoRepository interface {
 	Crear(context.Context, domain.Producto, *int64) (domain.Producto, error)
 	Obtener(context.Context, string, string) (ProductoDetalle, error)
-	Listar(context.Context, string, ListarProductosFilter) ([]domain.Producto, int, error)
+	Listar(context.Context, string, ListarProductosFilter) ([]ProductoDetalle, int, error)
 	Actualizar(context.Context, domain.Producto) (domain.Producto, error)
 }
 
@@ -446,7 +446,7 @@ func (s *Service) ObtenerProducto(ctx context.Context, empresaID, productoID str
 	return s.productos.Obtener(ctx, empresaID, productoID)
 }
 
-func (s *Service) ListarProductos(ctx context.Context, empresaID string, f ListarProductosFilter) ([]domain.Producto, int, error) {
+func (s *Service) ListarProductos(ctx context.Context, empresaID string, f ListarProductosFilter) ([]ProductoDetalle, int, error) {
 	if empresaID == "" {
 		return nil, 0, fmt.Errorf("%w: empresa requerida", domain.ErrInvalido)
 	}

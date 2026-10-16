@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -32,7 +33,7 @@ func (c *OutboxConsumer) Claim(ctx context.Context, limit int) ([]ports.OutboxJo
 		UPDATE outbox_envios o
 		SET estado = 'processing', actualizado_en = now()
 		FROM cte WHERE o.id = cte.id
-		RETURNING o.id, o.comprobante_id, o.tipo_trabajo, o.estado, o.intentos,
+		RETURNING o.id, o.comprobante_id, o.referencia_id, o.tipo_trabajo, o.estado, o.intentos,
 		          o.disponible_en, o.creado_en, o.ultimo_error, o.actualizado_en`,
 		limit,
 	)
@@ -67,6 +68,22 @@ func (c *OutboxConsumer) Complete(ctx context.Context, jobID int64) error {
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("complete outbox: job %d no encontrado", jobID)
+	}
+	return nil
+}
+
+func (c *OutboxConsumer) CompleteWithError(ctx context.Context, jobID int64, errMsg string) error {
+	tag, err := c.pool.Exec(ctx, `
+		UPDATE outbox_envios
+		SET estado = 'done', ultimo_error = $2, actualizado_en = now()
+		WHERE id = $1`,
+		jobID, errMsg,
+	)
+	if err != nil {
+		return fmt.Errorf("complete outbox con error: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("complete outbox con error: job %d no encontrado", jobID)
 	}
 	return nil
 }
@@ -121,9 +138,11 @@ type outboxRowScanner interface {
 
 func scanOutboxJob(s outboxRowScanner) (ports.OutboxJob, error) {
 	var job ports.OutboxJob
+	var comprobanteID, referenciaID sql.NullString
 	if err := s.Scan(
 		&job.ID,
-		&job.ComprobanteID,
+		&comprobanteID,
+		&referenciaID,
 		&job.TipoTrabajo,
 		&job.Estado,
 		&job.Intentos,
@@ -133,6 +152,12 @@ func scanOutboxJob(s outboxRowScanner) (ports.OutboxJob, error) {
 		&job.ActualizadoEn,
 	); err != nil {
 		return ports.OutboxJob{}, fmt.Errorf("leer outbox job: %w", err)
+	}
+	if comprobanteID.Valid {
+		job.ComprobanteID = comprobanteID.String
+	}
+	if referenciaID.Valid {
+		job.ReferenciaID = referenciaID.String
 	}
 	return job, nil
 }

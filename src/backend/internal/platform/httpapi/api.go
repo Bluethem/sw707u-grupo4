@@ -28,23 +28,28 @@ type Dependencies struct {
 	Gestion     *gestionapp.Service
 	Usuarios    gestionapp.UsuarioRepository
 	Sessions    SessionStore
-	Emisor      *factapp.Emisor
-	Query       ports.ComprobanteQuery
-	CORSOrigins []string
+	Emisor        *factapp.Emisor
+	Query         ports.ComprobanteQuery
+	Comprobantes  *factapp.Comprobantes
+	Resumenes     *factapp.Resumenes
+	CORSOrigins   []string
 }
 
 type API struct {
 	gestion  *gestionapp.Service
 	usuarios gestionapp.UsuarioRepository
 	sessions SessionStore
-	emisor   *factapp.Emisor
-	query    ports.ComprobanteQuery
+	emisor       *factapp.Emisor
+	query        ports.ComprobanteQuery
+	comprobantes *factapp.Comprobantes
+	resumenes    *factapp.Resumenes
 }
 
 func NewAPIHandler(deps Dependencies) http.Handler {
 	api := &API{
 		gestion: deps.Gestion, usuarios: deps.Usuarios, sessions: deps.Sessions,
-		emisor: deps.Emisor, query: deps.Query,
+		emisor: deps.Emisor, query: deps.Query, comprobantes: deps.Comprobantes,
+		resumenes: deps.Resumenes,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", api.health)
@@ -59,6 +64,11 @@ func NewAPIHandler(deps Dependencies) http.Handler {
 	mux.Handle("POST /api/v1/comprobantes", authenticated(http.HandlerFunc(api.emitirComprobante)))
 	mux.Handle("GET /api/v1/comprobantes/{id}", authenticated(http.HandlerFunc(api.obtenerComprobante)))
 	mux.Handle("GET /api/v1/comprobantes", authenticated(http.HandlerFunc(api.listarComprobantes)))
+	mux.Handle("POST /api/v1/comprobantes/{id}/reenviar", admin(api.reenviarComprobante))
+	mux.Handle("POST /api/v1/comprobantes/{id}/baja", admin(api.solicitarBajaComprobante))
+	mux.Handle("POST /api/v1/resumenes", admin(api.generarResumen))
+	mux.Handle("GET /api/v1/resumenes", admin(api.listarResumenes))
+	mux.Handle("GET /api/v1/resumenes/{id}", admin(api.obtenerResumen))
 	mux.Handle("POST /api/v1/clientes", authenticated(http.HandlerFunc(api.crearCliente)))
 	mux.Handle("GET /api/v1/clientes", authenticated(http.HandlerFunc(api.listarClientes)))
 	mux.Handle("GET /api/v1/clientes/{id}", authenticated(http.HandlerFunc(api.obtenerCliente)))
