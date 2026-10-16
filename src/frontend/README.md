@@ -58,3 +58,15 @@ pnpm build
 ## Flujo demo rápido
 
 Login con el admin del seed → `/caja` → agregar productos → emitir boleta/factura → enlace al detalle en `/comprobantes/[id]`. Con el worker corriendo, el detalle puede pasar a `ACEPTADO` (polling cada 3s mientras `PENDIENTE`/`ENVIADO`).
+
+## Admin (solo administrador)
+
+Rutas bajo `/admin/*` — productos, clientes y series. El nav muestra estos enlaces solo si `GET /api/v1/auth/me` devuelve `rol === "administrador"`. Un cajero que abra una URL admin es redirigido a `/caja`.
+
+| Ruta | Uso |
+|---|---|
+| `/admin/productos` | Catálogo, stock, activar/desactivar |
+| `/admin/clientes` | Maestro de clientes |
+| `/admin/series` | Series de boleta/factura y correlativo |
+
+API: mismos endpoints que la caja (`/api/v1/productos`, `/api/v1/clientes`, `/api/v1/series`), con cookies de sesión admin.
