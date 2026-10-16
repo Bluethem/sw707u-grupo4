@@ -63,8 +63,8 @@ func (a *API) listarProductos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := make([]any, 0, len(items))
-	for _, p := range items {
-		response = append(response, productoResponse(p))
+	for _, d := range items {
+		response = append(response, productoDetalleResponse(d))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": response, "total": total})
 }

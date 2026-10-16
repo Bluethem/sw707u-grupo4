@@ -68,5 +68,15 @@ Rutas bajo `/admin/*` — productos, clientes y series. El nav muestra estos enl
 | `/admin/productos` | Catálogo, stock, activar/desactivar |
 | `/admin/clientes` | Maestro de clientes |
 | `/admin/series` | Series de boleta/factura y correlativo |
+| `/admin/resumenes` | Resúmenes diarios de boletas (generar por fecha, ver ítems) |
 
 API: mismos endpoints que la caja (`/api/v1/productos`, `/api/v1/clientes`, `/api/v1/series`), con cookies de sesión admin.
+
+## M6+ — reenvío, baja y resumen (admin)
+
+En `/comprobantes/[id]`, si `GET /api/v1/auth/me` devuelve `rol === "administrador"`:
+
+- **Reenviar** (`POST …/reenviar`): visible con estado `PENDIENTE` o `ENVIADO`.
+- **Dar de baja** (factura `ACEPTADO`) o **Solicitar baja** (boleta `ACEPTADO`/`PENDIENTE`): pide motivo → `POST …/baja`. La baja de boleta queda en `PENDIENTE_BAJA` hasta un resumen del día de emisión.
+
+En `/admin/resumenes`: lista `GET /api/v1/resumenes`, elige fecha y **Generar** (`POST /api/v1/resumenes` con `{ "fecha": "YYYY-MM-DD" }`). El worker procesa el job `resumen_diario` hasta `ACEPTADO`/`RECHAZADO`.

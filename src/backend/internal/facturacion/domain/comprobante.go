@@ -27,6 +27,7 @@ type Comprobante struct {
 	IGV            decimal.Decimal
 	Total          decimal.Decimal
 	IdempotencyKey string
+	BajaMotivo     string
 }
 
 type LineaComprobante struct {

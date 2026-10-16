@@ -79,9 +79,18 @@ func TestProductoRepository_CrearObtenerListar(t *testing.T) {
 	if err != nil || total != 3 || len(items) != 3 {
 		t.Fatalf("listar todos: total=%d len=%d err=%v", total, len(items), err)
 	}
+	var foundStock bool
+	for _, d := range items {
+		if d.Producto.ID == p1.ID {
+			foundStock = d.Stock != nil && *d.Stock == stock10
+		}
+	}
+	if !foundStock {
+		t.Fatalf("listar debio incluir stock de p1=%d: %#v", stock10, items)
+	}
 
 	items, total, err = repo.Listar(ctx, empresaID, gestionapp.ListarProductosFilter{Q: "Bravo", Limit: 50})
-	if err != nil || total != 1 || len(items) != 1 || items[0].ID != p2.ID {
+	if err != nil || total != 1 || len(items) != 1 || items[0].Producto.ID != p2.ID {
 		t.Fatalf("listar Q: total=%d items=%#v err=%v", total, items, err)
 	}
 

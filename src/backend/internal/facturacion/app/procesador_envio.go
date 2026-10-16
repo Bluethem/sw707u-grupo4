@@ -14,6 +14,7 @@ const defaultClaimBatch = 10
 type ProcesadorEnvio struct {
 	Outbox       ports.OutboxConsumer
 	Comprobantes ports.ComprobanteEnvioStore
+	Resumenes    ports.ResumenStore
 	Storage      ports.StoragePort
 	Sunat        ports.SunatGateway
 	BatchSize    int
@@ -54,6 +55,19 @@ func (p *ProcesadorEnvio) RunOnce(ctx context.Context) error {
 }
 
 func (p *ProcesadorEnvio) procesarJob(ctx context.Context, job ports.OutboxJob) error {
+	switch job.TipoTrabajo {
+	case ports.TipoTrabajoEnvioComprobante:
+		return p.procesarEnvioComprobante(ctx, job)
+	case ports.TipoTrabajoBajaFactura:
+		return p.procesarBajaFactura(ctx, job)
+	case ports.TipoTrabajoResumenDiario:
+		return p.procesarResumenDiario(ctx, job)
+	default:
+		return p.Outbox.Fail(ctx, job.ID, fmt.Sprintf("tipo_trabajo desconocido: %q", job.TipoTrabajo))
+	}
+}
+
+func (p *ProcesadorEnvio) procesarEnvioComprobante(ctx context.Context, job ports.OutboxJob) error {
 	c, err := p.Comprobantes.GetByComprobanteID(ctx, job.ComprobanteID)
 	if err != nil {
 		return err
@@ -91,6 +105,81 @@ func (p *ProcesadorEnvio) procesarJob(ctx context.Context, job ports.OutboxJob) 
 		return err
 	}
 	return p.Outbox.Complete(ctx, job.ID)
+}
+
+func (p *ProcesadorEnvio) procesarResumenDiario(ctx context.Context, job ports.OutboxJob) error {
+	if p.Resumenes == nil {
+		return p.Outbox.Fail(ctx, job.ID, "resumen store no configurado")
+	}
+	resumenID := job.ReferenciaID
+	if resumenID == "" {
+		return p.Outbox.Fail(ctx, job.ID, "referencia_id resumen vacio")
+	}
+	_, items, err := p.Resumenes.GetWorkerData(ctx, resumenID)
+	if err != nil {
+		return p.Outbox.Fail(ctx, job.ID, err.Error())
+	}
+
+	if err := p.Resumenes.UpdateEstado(ctx, resumenID, domain.ResumenEnviado, ""); err != nil {
+		return err
+	}
+
+	payload := []byte(fmt.Sprintf(`{"resumen_id":%q}`, resumenID))
+	res, err := p.Sunat.EnviarResumen(ctx, resumenID, payload)
+	if err != nil {
+		_ = p.Resumenes.UpdateEstado(ctx, resumenID, domain.ResumenPendiente, "")
+		return p.reintentarOFallar(ctx, job, err.Error())
+	}
+
+	if res.Aceptado {
+		if err := p.Resumenes.UpdateEstado(ctx, resumenID, domain.ResumenAceptado, res.Codigo); err != nil {
+			return err
+		}
+		for _, item := range items {
+			var nuevo domain.EstadoComprobante
+			if item.Anulado {
+				nuevo = domain.EstadoAnulada
+			} else {
+				nuevo = domain.EstadoAceptado
+			}
+			if err := p.Comprobantes.UpdateEstado(ctx, item.ComprobanteID, nuevo); err != nil {
+				return err
+			}
+		}
+		return p.Outbox.Complete(ctx, job.ID)
+	}
+
+	if err := p.Resumenes.UpdateEstado(ctx, resumenID, domain.ResumenRechazado, res.Codigo); err != nil {
+		return err
+	}
+	return p.Outbox.CompleteWithError(ctx, job.ID, res.Mensaje)
+}
+
+func (p *ProcesadorEnvio) procesarBajaFactura(ctx context.Context, job ports.OutboxJob) error {
+	c, err := p.Comprobantes.GetByComprobanteID(ctx, job.ComprobanteID)
+	if err != nil {
+		return err
+	}
+	if c == nil {
+		return p.Outbox.Fail(ctx, job.ID, "comprobante no encontrado")
+	}
+
+	res, err := p.Sunat.EnviarBaja(ctx, c.ID, c.BajaMotivo)
+	if err != nil {
+		return p.reintentarOFallar(ctx, job, err.Error())
+	}
+
+	if res.Aceptado {
+		if err := p.Comprobantes.UpdateEstado(ctx, c.ID, domain.EstadoAnulada); err != nil {
+			return err
+		}
+		return p.Outbox.Complete(ctx, job.ID)
+	}
+
+	if err := p.Comprobantes.UpdateEstado(ctx, c.ID, domain.EstadoAceptado); err != nil {
+		return err
+	}
+	return p.Outbox.CompleteWithError(ctx, job.ID, res.Mensaje)
 }
 
 func (p *ProcesadorEnvio) obtenerXML(ctx context.Context, comprobanteID string) ([]byte, error) {

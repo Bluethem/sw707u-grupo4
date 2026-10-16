@@ -89,15 +89,15 @@ func (r *ProductoRepository) Listar(
 	ctx context.Context,
 	empresaID string,
 	f gestionapp.ListarProductosFilter,
-) ([]gestiondomain.Producto, int, error) {
+) ([]gestionapp.ProductoDetalle, int, error) {
 	limit := f.Limit
 	offset := f.Offset
 	args := []any{empresaID, f.Q, f.Activo}
 	const filtros = `
-		FROM productos
-		WHERE empresa_id = $1
-		  AND ($2 = '' OR codigo ILIKE '%' || $2 || '%' OR descripcion ILIKE '%' || $2 || '%')
-		  AND ($3::boolean IS NULL OR activo = $3)`
+		FROM productos p
+		WHERE p.empresa_id = $1
+		  AND ($2 = '' OR p.codigo ILIKE '%' || $2 || '%' OR p.descripcion ILIKE '%' || $2 || '%')
+		  AND ($3::boolean IS NULL OR p.activo = $3)`
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*)`+filtros, args...).Scan(&total); err != nil {
@@ -105,10 +105,15 @@ func (r *ProductoRepository) Listar(
 	}
 
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, empresa_id, codigo, descripcion, unidad, precio, afectacion,
-		       controla_stock, activo, creado_en, actualizado_en`+
-		filtros+`
-		ORDER BY descripcion, codigo, id
+		SELECT p.id, p.empresa_id, p.codigo, p.descripcion, p.unidad, p.precio, p.afectacion,
+		       p.controla_stock, p.activo, p.creado_en, p.actualizado_en, ps.cantidad
+		FROM productos p
+		LEFT JOIN productos_stock ps
+		  ON ps.empresa_id = p.empresa_id AND ps.producto_id = p.id
+		WHERE p.empresa_id = $1
+		  AND ($2 = '' OR p.codigo ILIKE '%' || $2 || '%' OR p.descripcion ILIKE '%' || $2 || '%')
+		  AND ($3::boolean IS NULL OR p.activo = $3)
+		ORDER BY p.descripcion, p.codigo, p.id
 		LIMIT $4 OFFSET $5`,
 		append(args, limit, offset)...,
 	)
@@ -117,13 +122,13 @@ func (r *ProductoRepository) Listar(
 	}
 	defer rows.Close()
 
-	items := make([]gestiondomain.Producto, 0)
+	items := make([]gestionapp.ProductoDetalle, 0)
 	for rows.Next() {
-		p, err := scanProducto(rows)
+		d, err := scanProductoDetalle(rows)
 		if err != nil {
 			return nil, 0, mapGestionError("leer producto", err)
 		}
-		items = append(items, p)
+		items = append(items, d)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, mapGestionError("listar productos", err)

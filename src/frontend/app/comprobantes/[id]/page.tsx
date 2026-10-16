@@ -5,10 +5,28 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppNav } from "@/components/shell/AppNav";
 import { RequireAuth } from "@/components/shell/RequireAuth";
+import { Button } from "@/components/ui";
 import { Badge, isBadgeStatus } from "@/components/ui/Badge";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ComprobanteItem } from "@/lib/caja-types";
 import { formatMoneyDecimal } from "@/lib/money";
+
+type MeResponse = {
+  rol: string;
+};
+
+function canReenviar(estado: string): boolean {
+  return estado === "PENDIENTE" || estado === "ENVIADO";
+}
+
+function canSolicitarBaja(tipo: string, estado: string): boolean {
+  if (estado === "PENDIENTE_BAJA" || estado === "ANULADA") return false;
+  if (tipo === "factura") return estado === "ACEPTADO";
+  if (tipo === "boleta") {
+    return estado === "ACEPTADO" || estado === "PENDIENTE" || estado === "ENVIADO";
+  }
+  return false;
+}
 
 const cardSurface: React.CSSProperties = {
   background: "var(--color-pure-white)",
@@ -46,6 +64,23 @@ export default function ComprobanteDetallePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [polling, setPolling] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [actionBusy, setActionBusy] = useState<"reenviar" | "baja" | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<MeResponse>("/api/v1/auth/me")
+      .then((me) => {
+        if (!cancelled) setIsAdmin(me.rol === "administrador");
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -116,6 +151,72 @@ export default function ComprobanteDetallePage() {
 
   const cliente = comp?.cliente;
 
+  async function reloadComprobante() {
+    if (!id) return;
+    try {
+      const data = await apiFetch<ComprobanteItem>(`/api/v1/comprobantes/${encodeURIComponent(id)}`);
+      setComp(data);
+      setError(undefined);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      setToast({ ok: false, text: e instanceof ApiError ? e.message : "Error al actualizar" });
+    }
+  }
+
+  async function handleReenviar() {
+    if (!comp) return;
+    setActionBusy("reenviar");
+    setToast(null);
+    try {
+      const updated = await apiFetch<ComprobanteItem>(
+        `/api/v1/comprobantes/${encodeURIComponent(comp.id)}/reenviar`,
+        { method: "POST" },
+      );
+      setComp(updated);
+      setToast({ ok: true, text: "Reenvío encolado." });
+      if (shouldPoll(updated.estado)) setPolling(true);
+    } catch (e) {
+      setToast({ ok: false, text: e instanceof ApiError ? e.message : "No se pudo reenviar" });
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function handleBaja() {
+    if (!comp) return;
+    const label = comp.tipo === "factura" ? "Dar de baja" : "Solicitar baja";
+    const motivo = window.prompt(`${label}: indica el motivo`);
+    if (motivo === null) return;
+    const trimmed = motivo.trim();
+    if (!trimmed) {
+      setToast({ ok: false, text: "El motivo es obligatorio." });
+      return;
+    }
+    setActionBusy("baja");
+    setToast(null);
+    try {
+      const updated = await apiFetch<ComprobanteItem>(
+        `/api/v1/comprobantes/${encodeURIComponent(comp.id)}/baja`,
+        { method: "POST", body: { motivo: trimmed } },
+      );
+      setComp(updated);
+      setToast({
+        ok: true,
+        text: comp.tipo === "factura" ? "Baja solicitada." : "Baja pendiente de resumen diario.",
+      });
+    } catch (e) {
+      setToast({ ok: false, text: e instanceof ApiError ? e.message : "No se pudo solicitar la baja" });
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  const showReenviar = isAdmin && comp ? canReenviar(comp.estado) : false;
+  const showBaja = isAdmin && comp ? canSolicitarBaja(comp.tipo, comp.estado) : false;
+
   return (
     <RequireAuth>
       <AppNav />
@@ -170,6 +271,58 @@ export default function ComprobanteDetallePage() {
               ) : null}
             </div>
 
+            {toast ? (
+              <p
+                style={{
+                  margin: "0 0 var(--spacing-12)",
+                  fontSize: "var(--text-body)",
+                  color: toast.ok ? "var(--color-cyan-edge)" : "var(--color-error-text)",
+                }}
+              >
+                {toast.text}
+              </p>
+            ) : null}
+
+            {showReenviar || showBaja ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "var(--spacing-8)",
+                  marginBottom: "var(--spacing-16)",
+                }}
+              >
+                {showReenviar ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={actionBusy !== null}
+                    onClick={() => void handleReenviar()}
+                  >
+                    {actionBusy === "reenviar" ? "Reenviando…" : "Reenviar"}
+                  </Button>
+                ) : null}
+                {showBaja ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={actionBusy !== null}
+                    onClick={() => void handleBaja()}
+                    style={{ color: "var(--color-error-text)" }}
+                  >
+                    {actionBusy === "baja"
+                      ? "Procesando…"
+                      : comp.tipo === "factura"
+                        ? "Dar de baja"
+                        : "Solicitar baja"}
+                  </Button>
+                ) : null}
+                <Button type="button" variant="ghost" disabled={actionBusy !== null} onClick={() => void reloadComprobante()}>
+                  Actualizar
+                </Button>
+              </div>
+            ) : null}
+
             <div style={{ ...cardSurface, marginBottom: "var(--spacing-16)" }}>
               <dl
                 style={{
@@ -210,6 +363,12 @@ export default function ComprobanteDetallePage() {
                     {formatMoneyDecimal(comp.total)}
                   </dd>
                 </div>
+                {comp.baja_motivo ? (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <dt style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>Motivo de baja</dt>
+                    <dd style={{ margin: "4px 0 0" }}>{comp.baja_motivo}</dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
 

@@ -53,13 +53,52 @@ type ComprobanteEnvioStore interface {
 	UpdateEstado(ctx context.Context, id string, estado domain.EstadoComprobante) error
 }
 
+type ComprobanteLifecycle interface {
+	MarcarPendienteBaja(ctx context.Context, tx Tx, empresaID, id, motivo string) error
+	PonerEstadoPendiente(ctx context.Context, tx Tx, id string) error
+}
+
+type EnvioOutboxReader interface {
+	LatestEnvioJob(ctx context.Context, comprobanteID string) (estado, ultimoError string, ok bool, err error)
+}
+
+const (
+	TipoTrabajoEnvioComprobante = "envio_comprobante"
+	TipoTrabajoBajaFactura      = "baja_factura"
+	TipoTrabajoResumenDiario    = "resumen_diario"
+)
+
 type OutboxPublisher interface {
 	EnqueueEnvio(ctx context.Context, tx Tx, comprobanteID string) error
+	EnqueueBaja(ctx context.Context, tx Tx, comprobanteID string) error
+	EnqueueResumen(ctx context.Context, tx Tx, resumenID string) error
+	RequeueEnvio(ctx context.Context, tx Tx, comprobanteID string) error
+}
+
+type BoletaInformable struct {
+	ID     string
+	Estado domain.EstadoComprobante
+}
+
+type ResumenWorkerItem struct {
+	ComprobanteID string
+	Anulado       bool
+}
+
+type ResumenStore interface {
+	List(ctx context.Context, empresaID string) ([]domain.ResumenDiario, error)
+	GetByID(ctx context.Context, empresaID, id string) (*domain.ResumenDiario, error)
+	BoletasInformables(ctx context.Context, tx Tx, empresaID string, fecha time.Time) ([]BoletaInformable, error)
+	NextCorrelativo(ctx context.Context, tx Tx, empresaID string, fecha time.Time) (int, error)
+	Insert(ctx context.Context, tx Tx, r *domain.ResumenDiario) error
+	GetWorkerData(ctx context.Context, resumenID string) (estado domain.EstadoResumen, items []ResumenWorkerItem, err error)
+	UpdateEstado(ctx context.Context, resumenID string, estado domain.EstadoResumen, ticket string) error
 }
 
 type OutboxJob struct {
 	ID             int64
 	ComprobanteID  string
+	ReferenciaID   string
 	TipoTrabajo    string
 	Estado         string
 	Intentos       int
@@ -72,6 +111,7 @@ type OutboxJob struct {
 type OutboxConsumer interface {
 	Claim(ctx context.Context, limit int) ([]OutboxJob, error)
 	Complete(ctx context.Context, jobID int64) error
+	CompleteWithError(ctx context.Context, jobID int64, errMsg string) error
 	Retry(ctx context.Context, jobID int64, intentos int, disponibleEn time.Time, errMsg string) error
 	Fail(ctx context.Context, jobID int64, errMsg string) error
 }
@@ -85,6 +125,8 @@ type SunatResult struct {
 
 type SunatGateway interface {
 	Enviar(ctx context.Context, comprobanteID string, xml []byte) (SunatResult, error)
+	EnviarBaja(ctx context.Context, comprobanteID, motivo string) (SunatResult, error)
+	EnviarResumen(ctx context.Context, resumenID string, payload []byte) (SunatResult, error)
 }
 
 type FirmaPort interface {

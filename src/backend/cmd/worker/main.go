@@ -49,6 +49,7 @@ func run() error {
 	procesador := &factapp.ProcesadorEnvio{
 		Outbox:       postgres.NewOutboxConsumer(pool),
 		Comprobantes: postgres.NewComprobanteQuery(pool),
+		Resumenes:    postgres.NewResumenRepository(pool),
 		Storage:      storage.NewFake(),
 		Sunat:        sunat.NewFake(sunat.Mode(cfg.SunatFakeMode)),
 		BatchSize:    cfg.WorkerBatchSize,

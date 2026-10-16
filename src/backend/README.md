@@ -208,3 +208,27 @@ go build ./cmd/worker/ ./cmd/api/
 ```
 
 Incluye E2E `TestE2E_EmitirYAceptarSUNATFake` (emite vía HTTP y corre `ProcesadorEnvio.RunOnce` en el harness).
+
+## M6+ — reenvío, baja y resumen diario
+
+Endpoints **solo administrador** (misma sesión Bearer/cookie que el resto de la API):
+
+| Método | Ruta | Uso |
+|---|---|---|
+| `POST` | `/api/v1/comprobantes/{id}/reenviar` | Reencola envío si `PENDIENTE`/`ENVIADO` o outbox en failed/pending con error |
+| `POST` | `/api/v1/comprobantes/{id}/baja` | Body `{ "motivo": "…" }`. Factura aceptada → outbox `baja_factura`. Boleta → `PENDIENTE_BAJA` (sin job inmediato) |
+| `POST` | `/api/v1/resumenes` | Body `{ "fecha": "YYYY-MM-DD" }` — agrupa boletas del día y encola `resumen_diario` |
+| `GET` | `/api/v1/resumenes` | Lista resúmenes de la empresa |
+| `GET` | `/api/v1/resumenes/{id}` | Detalle con `comprobantes[]` (`comprobante_id`, `anulado`) |
+
+El worker despacha `tipo_trabajo`: `envio_comprobante`, `baja_factura`, `resumen_diario` (Fake SUNAT). Tras generar un resumen, corre `go run ./cmd/worker` o espera el servicio Docker `worker`.
+
+```bash
+curl -sS -X POST "$API_BASE/api/v1/comprobantes/<ID>/reenviar" -H "Authorization: Bearer $TOKEN"
+curl -sS -X POST "$API_BASE/api/v1/comprobantes/<ID>/baja" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"motivo":"Error de emisión"}'
+curl -sS -X POST "$API_BASE/api/v1/resumenes" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"fecha":"2026-10-16"}'
+```

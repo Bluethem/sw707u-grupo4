@@ -31,6 +31,7 @@ func nuevoProcesador(gateway *sunat.Fake) *app.ProcesadorEnvio {
 	return &app.ProcesadorEnvio{
 		Outbox:       postgresadapter.NewOutboxConsumer(testPool),
 		Comprobantes: postgresadapter.NewComprobanteQuery(testPool),
+		Resumenes:    postgresadapter.NewResumenRepository(testPool),
 		Storage:      store,
 		Sunat:        gateway,
 		MaxIntentos:  5,

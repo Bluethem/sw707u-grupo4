@@ -132,6 +132,40 @@ func (a *API) obtenerComprobante(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, comprobanteResponse(comprobante))
 }
 
+func (a *API) reenviarComprobante(w http.ResponseWriter, r *http.Request) {
+	user, _ := platformauth.UserFromContext(r.Context())
+	if a.comprobantes == nil {
+		writeError(w, http.StatusInternalServerError, "error interno")
+		return
+	}
+	c, err := a.comprobantes.ReenviarComprobante(r.Context(), user.EmpresaID, r.PathValue("id"))
+	if err != nil {
+		writeFacturacionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, comprobanteResponse(c))
+}
+
+func (a *API) solicitarBajaComprobante(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Motivo string `json:"motivo"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	user, _ := platformauth.UserFromContext(r.Context())
+	if a.comprobantes == nil {
+		writeError(w, http.StatusInternalServerError, "error interno")
+		return
+	}
+	c, err := a.comprobantes.SolicitarBaja(r.Context(), user.EmpresaID, r.PathValue("id"), input.Motivo)
+	if err != nil {
+		writeFacturacionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, comprobanteResponse(c))
+}
+
 func (a *API) listarComprobantes(w http.ResponseWriter, r *http.Request) {
 	filtro, err := listFilter(r)
 	if err != nil {
@@ -210,6 +244,7 @@ func comprobanteResponse(c *domain.Comprobante) map[string]any {
 		"id": c.ID, "tipo": c.Tipo, "serie": c.Serie, "numero": c.Numero,
 		"estado": c.Estado, "cliente": nil, "valor_venta": c.ValorVenta,
 		"igv": c.IGV, "total": c.Total, "idempotency_key": c.IdempotencyKey,
+		"baja_motivo": c.BajaMotivo,
 	}
 	if c.Cliente != nil {
 		response["cliente"] = map[string]string{
@@ -233,6 +268,18 @@ func writeFacturacionError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, domain.ErrStockInsuficiente):
 		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, domain.ErrComprobanteNoEncontrado):
+		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrOperacionNoPermitida):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, domain.ErrMotivoBajaInvalido):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrResumenNoEncontrado):
+		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrResumenSinBoletas):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, domain.ErrFechaResumenInvalida):
+		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrSerieNoEncontrada):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, domain.ErrClienteRequerido),

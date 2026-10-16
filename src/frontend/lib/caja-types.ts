@@ -75,7 +75,25 @@ export type ComprobanteItem = {
   igv: string;
   total: string;
   idempotency_key: string;
+  baja_motivo?: string;
   lineas: ComprobanteLinea[];
+};
+
+/** GET/POST /api/v1/resumenes */
+export type ResumenComprobanteItem = {
+  comprobante_id: string;
+  anulado: boolean;
+};
+
+export type ResumenDiarioItem = {
+  id: string;
+  empresa_id: string;
+  fecha: string;
+  correlativo: number;
+  estado: string;
+  ticket: string;
+  creado_en: string;
+  comprobantes: ResumenComprobanteItem[];
 };
 
 export type Paginated<T> = {
