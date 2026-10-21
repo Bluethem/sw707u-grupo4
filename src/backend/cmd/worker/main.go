@@ -50,7 +50,7 @@ func run() error {
 		Outbox:       postgres.NewOutboxConsumer(pool),
 		Comprobantes: postgres.NewComprobanteQuery(pool),
 		Resumenes:    postgres.NewResumenRepository(pool),
-		Storage:      storage.NewFake(),
+		Storage:      storage.NewFS(cfg.BlobDir),
 		Sunat:        sunat.NewFake(sunat.Mode(cfg.SunatFakeMode)),
 		BatchSize:    cfg.WorkerBatchSize,
 		MaxIntentos:  cfg.WorkerMaxIntentos,

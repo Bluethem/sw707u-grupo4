@@ -32,4 +32,8 @@ var (
 	ErrResumenNoEncontrado     = fmt.Errorf("resumen no encontrado")
 	ErrResumenSinBoletas       = fmt.Errorf("no hay boletas informables para la fecha")
 	ErrFechaResumenInvalida    = fmt.Errorf("fecha invalida")
+	ErrFechaReporteInvalida    = fmt.Errorf("fecha invalida")
+	ErrRangoReporteExcedido    = fmt.Errorf("rango de fechas excede 90 dias")
+	ErrCDRNoDisponible         = fmt.Errorf("cdr no disponible")
+	ErrCDRNoEncontrado         = fmt.Errorf("cdr no encontrado")
 )

@@ -26,6 +26,18 @@ import (
 	redislib "github.com/redis/go-redis/v9"
 )
 
+type harnessEmpresaReader struct {
+	repo *postgres.EmpresaRepository
+}
+
+func (r harnessEmpresaReader) Obtener(ctx context.Context, empresaID string) (string, string, error) {
+	e, err := r.repo.Obtener(ctx, empresaID)
+	if err != nil {
+		return "", "", err
+	}
+	return e.RUC, e.RazonSocial, nil
+}
+
 type harness struct {
 	server   *httptest.Server
 	pool     *pgxpool.Pool
@@ -100,12 +112,26 @@ func newHarness(t *testing.T) *harness {
 	comprobantes := postgres.NewComprobante()
 	query := postgres.NewComprobanteQuery(pool)
 	blobStore := storage.NewFake()
+	empresaDoc := func(ctx context.Context, empresaID string) (string, string, error) {
+		e, err := empresas.Obtener(ctx, empresaID)
+		if err != nil {
+			return "", "", err
+		}
+		return e.RUC, e.RazonSocial, nil
+	}
 	emisor := &factapp.Emisor{
 		UoW: uow, Stock: postgres.NewStock(),
 		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series: postgres.NewSeries(), Comps: comprobantes, Outbox: postgres.NewOutbox(),
 		Firma: firma.Fake{}, PDF: pdf.Fake{}, Storage: blobStore,
+		Empresas: harnessEmpresaReader{repo: empresas},
 	}
+	documentosSvc := &factapp.Documentos{
+		Query: query, Storage: blobStore, Firma: firma.Fake{}, Pdf: pdf.Fake{},
+		Empresa: empresaDoc,
+	}
+	consultaStore := redisadapter.NewConsultaStore(redisClient)
+	consultaSvc := &factapp.Consulta{Repo: query, Tokens: consultaStore}
 	comprobanteSvc := &factapp.Comprobantes{
 		UoW: uow, Query: query, Lifecycle: comprobantes,
 		Outbox: postgres.NewOutbox(), OutboxRead: query,
@@ -114,9 +140,12 @@ func newHarness(t *testing.T) *harness {
 	resumenSvc := &factapp.Resumenes{
 		UoW: uow, Store: resumenRepo, Outbox: postgres.NewOutbox(),
 	}
+	reporteRepo := postgres.NewReporteRepository(pool)
+	reporteSvc := &factapp.Reportes{Store: reporteRepo}
 	server := httptest.NewServer(httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
-		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc, Resumenes: resumenSvc,
+		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc, Documentos: documentosSvc,
+		Consulta: consultaSvc, Resumenes: resumenSvc, Reportes: reporteSvc,
 	}))
 	t.Cleanup(server.Close)
 

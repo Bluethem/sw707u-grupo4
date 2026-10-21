@@ -70,6 +70,15 @@ go run ./cmd/worker
 
 Variables del worker: `WORKER_POLL_INTERVAL`, `WORKER_BATCH_SIZE`, `WORKER_MAX_INTENTOS`, `WORKER_BACKOFF_BASE` (detalle en `src/backend/README.md`).
 
+Variables M7 (API y worker en Compose):
+
+| Variable | Ejemplo | Uso |
+|---|---|---|
+| `BLOB_DIR` | `/data/blobs` | PDF/XML/CDR en disco |
+| `FRONTEND_PUBLIC_URL` | `http://localhost:3000` | URL base del QR en el PDF |
+
+Local en el host: `BLOB_DIR=./data/blobs` (crear directorio o usar el default relativo al cwd del proceso).
+
 ## Frontend en el host
 
 ```bash

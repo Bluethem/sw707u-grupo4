@@ -20,7 +20,9 @@ type Config struct {
 	WorkerBatchSize    int
 	WorkerMaxIntentos  int
 	WorkerBackoffBase  time.Duration
-	SunatFakeMode      string
+	SunatFakeMode       string
+	BlobDir             string
+	FrontendPublicURL   string
 }
 
 func Load() (Config, error) {
@@ -64,7 +66,9 @@ func Load() (Config, error) {
 		WorkerBatchSize:      batchSize,
 		WorkerMaxIntentos:    maxIntentos,
 		WorkerBackoffBase:    backoffBase,
-		SunatFakeMode:        getenv("SUNAT_FAKE_MODE", "accept"),
+		SunatFakeMode:      getenv("SUNAT_FAKE_MODE", "accept"),
+		BlobDir:            getenv("BLOB_DIR", "./data/blobs"),
+		FrontendPublicURL:  getenv("FRONTEND_PUBLIC_URL", "http://localhost:3000"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")

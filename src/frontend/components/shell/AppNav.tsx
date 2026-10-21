@@ -102,6 +102,9 @@ export function AppNav() {
             <Link href="/admin/resumenes" style={linkStyle("/admin/resumenes")}>
               Resúmenes
             </Link>
+            <Link href="/admin/reportes" style={linkStyle("/admin/reportes")}>
+              Reportes
+            </Link>
           </>
         ) : null}
       </nav>

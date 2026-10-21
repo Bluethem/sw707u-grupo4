@@ -207,6 +207,21 @@ func listFilter(r *http.Request) (ports.ListFilter, error) {
 		}
 		filtro.FechaHasta = &fecha
 	}
+	if filtro.FechaDesde != nil && filtro.FechaHasta != nil {
+		dias := filtro.FechaHasta.Sub(*filtro.FechaDesde) / (24 * time.Hour)
+		if dias > 90 {
+			return filtro, errors.New("rango de fechas excede 90 dias")
+		}
+	}
+	filtro.Serie = strings.ToUpper(strings.TrimSpace(query.Get("serie")))
+	if value := strings.TrimSpace(query.Get("numero")); value != "" {
+		numero, parseErr := strconv.ParseInt(value, 10, 64)
+		if parseErr != nil || numero < 1 {
+			return filtro, errors.New("numero invalido")
+		}
+		filtro.Numero = &numero
+	}
+	filtro.Q = strings.TrimSpace(query.Get("q"))
 	if value := query.Get("limit"); value != "" {
 		filtro.Limit, err = strconv.Atoi(value)
 		if err != nil || filtro.Limit < 1 {

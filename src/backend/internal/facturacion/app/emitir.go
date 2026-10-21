@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/pdf"
+	"github.com/Bluethem/sw707u-grupo4/src/backend/adapters/ubl"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/domain"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/ports"
 	"github.com/google/uuid"
@@ -26,6 +29,10 @@ type EmitirLinea struct {
 	Afectacion     domain.Afectacion
 }
 
+type EmpresaReader interface {
+	Obtener(ctx context.Context, empresaID string) (ruc, razon string, err error)
+}
+
 type Emisor struct {
 	UoW       ports.UnitOfWork
 	Stock     ports.StockPort
@@ -36,6 +43,7 @@ type Emisor struct {
 	Firma     ports.FirmaPort
 	PDF       ports.PdfPort
 	Storage   ports.StoragePort
+	Empresas  EmpresaReader
 	NewID     func() string
 }
 
@@ -110,6 +118,7 @@ func (e *Emisor) Emitir(ctx context.Context, cmd EmitirComando) (c *domain.Compr
 			IGV:            totales.IGV,
 			Total:          totales.Total,
 			IdempotencyKey: cmd.IdempotencyKey,
+			CreadoEn:       time.Now().UTC(),
 		}
 		if err := e.Comps.Insert(ctx, tx, comprobante); err != nil {
 			return err
@@ -156,14 +165,23 @@ func calcularLineas(lineas []EmitirLinea) ([]domain.LineaComprobante, domain.Tot
 }
 
 func (e *Emisor) generarRepresentaciones(ctx context.Context, c *domain.Comprobante) {
+	emisorRUC, emisorRazon := "", ""
+	if e.Empresas != nil {
+		if ruc, razon, err := e.Empresas.Obtener(ctx, c.EmpresaID); err == nil {
+			emisorRUC, emisorRazon = ruc, razon
+		}
+	}
 	if e.Firma != nil {
-		xml := []byte(fmt.Sprintf("<comprobante id=%q/>", c.ID))
-		if firmado, err := e.Firma.FirmarXML(ctx, xml); err == nil && e.Storage != nil {
-			_ = e.Storage.Guardar(ctx, c.ID+".xml", firmado)
+		xml, err := ubl.Generar(c, emisorRUC, emisorRazon)
+		if err == nil {
+			if firmado, err := e.Firma.FirmarXML(ctx, xml); err == nil && e.Storage != nil {
+				_ = e.Storage.Guardar(ctx, c.ID+".xml", firmado)
+			}
 		}
 	}
 	if e.PDF != nil {
-		if data, err := e.PDF.Generar(ctx, c); err == nil && e.Storage != nil {
+		pdfCtx := pdf.WithEmisor(ctx, emisorRUC, emisorRazon)
+		if data, err := e.PDF.Generar(pdfCtx, c); err == nil && e.Storage != nil {
 			_ = e.Storage.Guardar(ctx, c.ID+".pdf", data)
 		}
 	}

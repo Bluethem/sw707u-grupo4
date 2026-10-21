@@ -55,7 +55,7 @@ go test ./internal/facturacion/... ./adapters/postgres/... ./adapters/sunat/ -co
 go test ./internal/apitest/ -run 'TestAPI_' -count=1 -p 1
 ```
 
-Incluye auth, usuarios, series, clientes, productos, emisión, reenvío/baja y resúmenes.
+Incluye auth, usuarios, series, clientes, productos, emisión, descargas, consulta pública, reportes, reenvío/baja y resúmenes.
 
 ### E2E (`TestE2E_*`)
 
@@ -63,13 +63,14 @@ Incluye auth, usuarios, series, clientes, productos, emisión, reenvío/baja y r
 go test ./internal/apitest/ -run 'TestE2E_' -count=1 -p 1
 ```
 
-Ejemplos: flujo multi-rol, catálogo, emisión, worker Fake SUNAT, resumen diario.
+Ejemplos: flujo multi-rol, catálogo, emisión, worker Fake SUNAT, resumen diario, documentos + consulta pública (`TestE2E_Documentos_EmitirDescargarYConsultar`).
 
-### Suite M6 / M6+ recomendada
+### Suite M7 recomendada
 
 ```bash
-go test ./internal/apitest/ ./internal/facturacion/... ./adapters/postgres/ ./adapters/sunat/ ./internal/platform/config/ -count=1 -p 1
+go test ./internal/apitest/ ./internal/facturacion/... ./adapters/postgres/ ./adapters/storage/ ./adapters/ubl/ ./adapters/pdf/ -count=1 -p 1
 go build ./cmd/api/ ./cmd/worker/
+cd ../frontend && pnpm exec tsc --noEmit && pnpm build
 ```
 
 Filtros M6+:
@@ -91,6 +92,11 @@ go test ./internal/facturacion/app/ -run 'Resumen|Procesador' -count=1 -p 1
 | `e2e_worker_test.go` | M6 outbox → Fake SUNAT |
 | `reenviar_baja_api_test.go` | M6+ reenvío y bajas |
 | `resumen_api_test.go` / `e2e_resumen_test.go` | M6+ resúmenes |
+| `descarga_api_test.go` | M7 descargas PDF/XML/CDR |
+| `consulta_publica_api_test.go` | M7 consulta pública + token |
+| `listado_api_test.go` | M7 filtros serie/numero/q y 90 días |
+| `reporte_api_test.go` | M7 reporte ventas JSON/CSV |
+| `e2e_documentos_test.go` | M7 E2E emitir → CDR → descargas → consulta |
 | `e2e_flujo_test.go` | Flujo transversal multi-empresa |
 
 ## Frontend

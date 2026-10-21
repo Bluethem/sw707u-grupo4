@@ -1,6 +1,10 @@
 package domain
 
-import "github.com/shopspring/decimal"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type EstadoComprobante string
 
@@ -28,6 +32,7 @@ type Comprobante struct {
 	Total          decimal.Decimal
 	IdempotencyKey string
 	BajaMotivo     string
+	CreadoEn       time.Time
 }
 
 type LineaComprobante struct {

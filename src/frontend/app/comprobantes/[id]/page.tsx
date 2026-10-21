@@ -7,7 +7,8 @@ import { AppNav } from "@/components/shell/AppNav";
 import { RequireAuth } from "@/components/shell/RequireAuth";
 import { Button } from "@/components/ui";
 import { Badge, isBadgeStatus } from "@/components/ui/Badge";
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import type { ComprobanteItem } from "@/lib/caja-types";
 import { formatMoneyDecimal } from "@/lib/money";
 
@@ -66,6 +67,8 @@ export default function ComprobanteDetallePage() {
   const [polling, setPolling] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [actionBusy, setActionBusy] = useState<"reenviar" | "baja" | null>(null);
+  const [downloadBusy, setDownloadBusy] = useState<"pdf" | "xml" | "cdr" | null>(null);
+  const [cdrBlocked, setCdrBlocked] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -185,6 +188,55 @@ export default function ComprobanteDetallePage() {
     }
   }
 
+  async function downloadDocumento(kind: "pdf" | "xml" | "cdr") {
+    if (!comp) return;
+    setDownloadBusy(kind);
+    setToast(null);
+    if (kind === "cdr") {
+      setCdrBlocked(false);
+    }
+    const token = getToken();
+    try {
+      const res = await fetch(
+        `${getApiBaseUrl()}/api/v1/comprobantes/${encodeURIComponent(comp.id)}/${kind}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) {
+        let message = `Error HTTP ${res.status}`;
+        const text = await res.text();
+        try {
+          const parsed = JSON.parse(text) as { error?: string };
+          if (typeof parsed.error === "string") {
+            message = parsed.error;
+          }
+        } catch {
+          if (text) message = text;
+        }
+        if (res.status === 409 && kind === "cdr") {
+          setCdrBlocked(true);
+        }
+        throw new ApiError(message, res.status);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${comp.serie}-${comp.numero}.${kind === "cdr" ? "cdr" : kind}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (kind === "cdr") {
+        setCdrBlocked(false);
+      }
+    } catch (e) {
+      setToast({
+        ok: false,
+        text: e instanceof ApiError ? e.message : "No se pudo descargar",
+      });
+    } finally {
+      setDownloadBusy(null);
+    }
+  }
+
   async function handleBaja() {
     if (!comp) return;
     const label = comp.tipo === "factura" ? "Dar de baja" : "Solicitar baja";
@@ -282,6 +334,50 @@ export default function ComprobanteDetallePage() {
                 {toast.text}
               </p>
             ) : null}
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "var(--spacing-8)",
+                marginBottom: "var(--spacing-16)",
+              }}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={downloadBusy !== null}
+                onClick={() => void downloadDocumento("pdf")}
+              >
+                {downloadBusy === "pdf" ? "Descargando PDF…" : "PDF"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={downloadBusy !== null}
+                onClick={() => void downloadDocumento("xml")}
+              >
+                {downloadBusy === "xml" ? "Descargando XML…" : "XML"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={downloadBusy !== null || cdrBlocked}
+                onClick={() => void downloadDocumento("cdr")}
+              >
+                {downloadBusy === "cdr" ? "Descargando CDR…" : "CDR"}
+              </Button>
+              {cdrBlocked ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={downloadBusy !== null}
+                  onClick={() => void downloadDocumento("cdr")}
+                >
+                  Reintentar CDR
+                </Button>
+              ) : null}
+            </div>
 
             {showReenviar || showBaja ? (
               <div
