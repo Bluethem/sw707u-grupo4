@@ -41,10 +41,35 @@ function clienteLabel(c: ComprobanteItem["cliente"]): string {
   return c.numero || "—";
 }
 
+const PAGE_SIZE = 50;
+
+function formatDateInput(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function defaultFechaDesde(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return formatDateInput(d);
+}
+
+function defaultFechaHasta(): string {
+  return formatDateInput(new Date());
+}
+
 export default function ComprobantesPage() {
   const router = useRouter();
   const [tipo, setTipo] = useState<"" | TipoComprobante>("");
   const [estado, setEstado] = useState("");
+  const [fechaDesde, setFechaDesde] = useState(defaultFechaDesde);
+  const [fechaHasta, setFechaHasta] = useState(defaultFechaHasta);
+  const [serie, setSerie] = useState("");
+  const [numero, setNumero] = useState("");
+  const [q, setQ] = useState("");
+  const [offset, setOffset] = useState(0);
   const [items, setItems] = useState<ComprobanteItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,7 +81,13 @@ export default function ComprobantesPage() {
     const qs = new URLSearchParams();
     if (tipo) qs.set("tipo", tipo);
     if (estado) qs.set("estado", estado);
-    qs.set("limit", "50");
+    if (fechaDesde) qs.set("fecha_desde", fechaDesde);
+    if (fechaHasta) qs.set("fecha_hasta", fechaHasta);
+    if (serie.trim()) qs.set("serie", serie.trim());
+    if (numero.trim()) qs.set("numero", numero.trim());
+    if (q.trim()) qs.set("q", q.trim());
+    qs.set("limit", String(PAGE_SIZE));
+    qs.set("offset", String(offset));
     const path = `/api/v1/comprobantes?${qs.toString()}`;
     try {
       const data = await apiFetch<Paginated<ComprobanteItem>>(path);
@@ -73,11 +104,24 @@ export default function ComprobantesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tipo, estado, router]);
+  }, [tipo, estado, fechaDesde, fechaHasta, serie, numero, q, offset, router]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const applyFilters = () => {
+    if (offset === 0) {
+      void load();
+    } else {
+      setOffset(0);
+    }
+  };
+
+  const page = Math.floor(offset / PAGE_SIZE) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const canPrev = offset > 0;
+  const canNext = offset + PAGE_SIZE < total;
 
   return (
     <RequireAuth>
@@ -112,6 +156,55 @@ export default function ComprobantesPage() {
             }}
           >
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px" }}>
+              <span style={{ color: "var(--color-warm-gray)" }}>Desde</span>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px" }}>
+              <span style={{ color: "var(--color-warm-gray)" }}>Hasta</span>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px" }}>
+              <span style={{ color: "var(--color-warm-gray)" }}>Serie</span>
+              <input
+                type="text"
+                value={serie}
+                onChange={(e) => setSerie(e.target.value)}
+                placeholder="B001"
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px" }}>
+              <span style={{ color: "var(--color-warm-gray)" }}>Número</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={numero}
+                onChange={(e) => setNumero(e.target.value.replace(/\D/g, ""))}
+                placeholder="1"
+                style={{ ...inputStyle, minWidth: 100 }}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px", flex: "1 1 160px" }}>
+              <span style={{ color: "var(--color-warm-gray)" }}>Cliente</span>
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Razón social o documento"
+                style={{ ...inputStyle, minWidth: 180 }}
+              />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "12px" }}>
               <span style={{ color: "var(--color-warm-gray)" }}>Tipo</span>
               <select
                 value={tipo}
@@ -136,8 +229,8 @@ export default function ComprobantesPage() {
                 <option value="PENDIENTE_BAJA">PENDIENTE_BAJA</option>
               </select>
             </label>
-            <button type="button" onClick={() => void load()} style={refreshBtnStyle}>
-              Actualizar
+            <button type="button" onClick={applyFilters} style={refreshBtnStyle}>
+              Buscar
             </button>
           </div>
         </div>
@@ -153,9 +246,41 @@ export default function ComprobantesPage() {
             <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Sin comprobantes.</p>
           ) : (
             <>
-              <p style={{ margin: "0 0 var(--spacing-12)", fontSize: "12px", color: "var(--color-warm-gray)" }}>
-                {total} registro{total === 1 ? "" : "s"}
-              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "var(--spacing-12)",
+                  marginBottom: "var(--spacing-12)",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: "12px", color: "var(--color-warm-gray)" }}>
+                  {total} registro{total === 1 ? "" : "s"}
+                  {total > PAGE_SIZE ? ` · página ${page} de ${totalPages}` : ""}
+                </p>
+                {total > PAGE_SIZE ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={!canPrev}
+                      onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                      style={paginationBtnStyle(!canPrev)}
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canNext}
+                      onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                      style={paginationBtnStyle(!canNext)}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
                 <thead>
                   <tr>
@@ -204,6 +329,25 @@ export default function ComprobantesPage() {
     </RequireAuth>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: "var(--radius-inputs)",
+  border: "1px solid var(--color-stone-border)",
+  background: "var(--color-pure-white)",
+  fontSize: "var(--text-body)",
+  minWidth: 140,
+};
+
+const paginationBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  padding: "6px 12px",
+  borderRadius: "var(--radius-buttons)",
+  border: "1px solid var(--color-stone-border)",
+  background: "var(--color-pure-white)",
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.5 : 1,
+  fontSize: "12px",
+});
 
 const selectStyle: React.CSSProperties = {
   padding: "8px 10px",

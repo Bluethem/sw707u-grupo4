@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/domain"
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/ports"
@@ -29,7 +30,7 @@ func (r *ComprobanteQuery) GetByComprobanteID(ctx context.Context, id string) (*
 	c, err := scanComprobante(r.pool.QueryRow(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key, baja_motivo
+		       valor_venta, igv, total, idempotency_key, baja_motivo, creado_en
 		FROM comprobantes
 		WHERE id = $1`,
 		id,
@@ -69,7 +70,7 @@ func (r *ComprobanteQuery) GetByID(
 	c, err := scanComprobante(r.pool.QueryRow(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key, baja_motivo
+		       valor_venta, igv, total, idempotency_key, baja_motivo, creado_en
 		FROM comprobantes
 		WHERE id = $1 AND empresa_id = $2`,
 		id, empresaID,
@@ -138,14 +139,20 @@ func (r *ComprobanteQuery) List(
 	if f.FechaHasta != nil {
 		fechaHastaExclusiva = f.FechaHasta.AddDate(0, 0, 1)
 	}
-	args := []any{empresaID, fechaDesde, fechaHastaExclusiva, f.Tipo, f.Estado}
+	serie := strings.ToUpper(strings.TrimSpace(f.Serie))
+	q := strings.TrimSpace(f.Q)
+	args := []any{empresaID, fechaDesde, fechaHastaExclusiva, f.Tipo, f.Estado, serie, f.Numero, q}
 	const filtros = `
 		FROM comprobantes
 		WHERE empresa_id = $1
 		  AND ($2::timestamptz IS NULL OR creado_en >= $2)
 		  AND ($3::timestamptz IS NULL OR creado_en < $3)
 		  AND ($4 = '' OR tipo = $4)
-		  AND ($5 = '' OR estado = $5)`
+		  AND ($5 = '' OR estado = $5)
+		  AND ($6 = '' OR upper(trim(serie)) = $6)
+		  AND ($7::bigint IS NULL OR numero = $7)
+		  AND ($8 = '' OR cliente_razon ILIKE '%' || $8 || '%'
+		              OR COALESCE(cliente_numero, '') ILIKE '%' || $8 || '%')`
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*)`+filtros, args...).Scan(&total); err != nil {
@@ -155,10 +162,10 @@ func (r *ComprobanteQuery) List(
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, empresa_id, tipo, serie, numero, estado,
 		       cliente_tipo, cliente_numero, cliente_razon,
-		       valor_venta, igv, total, idempotency_key, baja_motivo`+
+		       valor_venta, igv, total, idempotency_key, baja_motivo, creado_en`+
 		filtros+`
 		ORDER BY creado_en DESC
-		LIMIT $6 OFFSET $7`,
+		LIMIT $9 OFFSET $10`,
 		append(args, limit, offset)...,
 	)
 	if err != nil {
@@ -190,7 +197,7 @@ func scanComprobante(row rowScanner) (*domain.Comprobante, error) {
 	if err := row.Scan(
 		&c.ID, &c.EmpresaID, &c.Tipo, &c.Serie, &c.Numero, &c.Estado,
 		&clienteTipo, &clienteNumero, &clienteRazon,
-		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey, &c.BajaMotivo,
+		&c.ValorVenta, &c.IGV, &c.Total, &c.IdempotencyKey, &c.BajaMotivo, &c.CreadoEn,
 	); err != nil {
 		return nil, err
 	}

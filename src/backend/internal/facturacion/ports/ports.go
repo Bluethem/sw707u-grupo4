@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/facturacion/domain"
+	"github.com/shopspring/decimal"
 )
 
 type Tx interface{} // opaque; adapters define concrete
@@ -36,6 +37,9 @@ type ListFilter struct {
 	FechaHasta *time.Time
 	Tipo       string
 	Estado     string
+	Serie      string
+	Numero     *int64
+	Q          string
 	Limit      int
 	Offset     int
 }
@@ -45,6 +49,32 @@ type ComprobanteQuery interface {
 	GetByID(ctx context.Context, empresaID, id string) (*domain.Comprobante, error)
 	// List retorna cabeceras sin lineas. FechaDesde y FechaHasta son dias inclusivos.
 	List(ctx context.Context, empresaID string, f ListFilter) (items []domain.Comprobante, total int, err error)
+}
+
+type ConsultaPublicaCriteria struct {
+	RUC               string
+	TipoDoc           string
+	ClienteNumero     string
+	Serie             string
+	NumeroComprobante int64
+	Fecha             time.Time
+	Monto             decimal.Decimal
+}
+
+type ConsultaPublicaMatch struct {
+	ID            string
+	EmpresaID     string
+	Tipo          domain.TipoComprobante
+	Serie         string
+	Numero        int64
+	Estado        domain.EstadoComprobante
+	EmisorRazon   string
+	Total         decimal.Decimal
+	CreadoEn      time.Time
+}
+
+type ConsultaPublicaRepository interface {
+	Match(ctx context.Context, c ConsultaPublicaCriteria) (*ConsultaPublicaMatch, error)
 }
 
 // ComprobanteEnvioStore lectura/actualizacion de estado para el worker de envio.

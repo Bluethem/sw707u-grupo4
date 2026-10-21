@@ -232,3 +232,63 @@ curl -sS -X POST "$API_BASE/api/v1/resumenes" \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"fecha":"2026-10-16"}'
 ```
+
+## M7 — documentos, consulta pública y reportes
+
+### Almacenamiento (`BLOB_DIR`)
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `BLOB_DIR` | `./data/blobs` | Directorio local para `{comprobante_id}.pdf`, `.xml`, `.cdr` |
+| `FRONTEND_PUBLIC_URL` | `http://localhost:3000` | Base del QR en el PDF (`/consulta?…`) |
+
+En Docker Compose: volumen `blobs` montado en `/data/blobs` para `api` y `worker`.
+
+Descargas autenticadas (cajero/admin):
+
+```bash
+curl -sS -OJ "$API_BASE/api/v1/comprobantes/<ID>/pdf" -H "Authorization: Bearer $TOKEN"
+curl -sS -OJ "$API_BASE/api/v1/comprobantes/<ID>/xml" -H "Authorization: Bearer $TOKEN"
+curl -sS -OJ "$API_BASE/api/v1/comprobantes/<ID>/cdr" -H "Authorization: Bearer $TOKEN"
+```
+
+CDR en `PENDIENTE`/`ENVIADO` → HTTP 409. PDF/XML se regeneran si el blob falta.
+
+Consulta pública (sin login):
+
+```bash
+curl -sS -X POST "$API_BASE/api/v1/publico/consulta" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "ruc":"20100070970","tipo_doc":"DNI","numero":"12345678",
+    "serie":"B001","numero_comprobante":1,"fecha":"2026-10-20","monto":"236.00"
+  }'
+# Usar el token devuelto:
+curl -sS -OJ "$API_BASE/api/v1/publico/comprobantes/<ID>/pdf?token=<TOKEN>"
+```
+
+Reporte de ventas (**admin**):
+
+```bash
+curl -sS "$API_BASE/api/v1/reportes/ventas?fecha_desde=2026-10-01&fecha_hasta=2026-10-20" \
+  -H "Authorization: Bearer $TOKEN"
+curl -sS -OJ "$API_BASE/api/v1/reportes/ventas.csv?fecha_desde=2026-10-01&fecha_hasta=2026-10-20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Listado de comprobantes admite `serie`, `numero`, `q` y límite de **90 días** en `fecha_desde`/`fecha_hasta`.
+
+### Tests M7
+
+Suite recomendada (Postgres `:55432`, Redis `/1`):
+
+```bash
+export PATH=$HOME/.local/go-install/go/bin:$PATH
+export DATABASE_URL='postgres://ff:ff@127.0.0.1:55432/flowfacture?sslmode=disable'
+export REDIS_URL='redis://127.0.0.1:6379/1'
+cd src/backend
+go test ./internal/apitest/ ./internal/facturacion/... ./adapters/postgres/ ./adapters/storage/ ./adapters/ubl/ ./adapters/pdf/ -count=1 -p 1
+go build ./cmd/api/ ./cmd/worker/
+```
+
+Incluye E2E `TestE2E_Documentos_EmitirDescargarYConsultar` (emitir con cliente → worker accept → descargas → consulta pública).

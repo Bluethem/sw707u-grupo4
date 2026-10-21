@@ -31,7 +31,10 @@ type Dependencies struct {
 	Emisor        *factapp.Emisor
 	Query         ports.ComprobanteQuery
 	Comprobantes  *factapp.Comprobantes
+	Documentos    *factapp.Documentos
+	Consulta      *factapp.Consulta
 	Resumenes     *factapp.Resumenes
+	Reportes      *factapp.Reportes
 	CORSOrigins   []string
 }
 
@@ -42,18 +45,25 @@ type API struct {
 	emisor       *factapp.Emisor
 	query        ports.ComprobanteQuery
 	comprobantes *factapp.Comprobantes
+	documentos   *factapp.Documentos
+	consulta     *factapp.Consulta
 	resumenes    *factapp.Resumenes
+	reportes     *factapp.Reportes
 }
 
 func NewAPIHandler(deps Dependencies) http.Handler {
 	api := &API{
 		gestion: deps.Gestion, usuarios: deps.Usuarios, sessions: deps.Sessions,
 		emisor: deps.Emisor, query: deps.Query, comprobantes: deps.Comprobantes,
-		resumenes: deps.Resumenes,
+		documentos: deps.Documentos, consulta: deps.Consulta, resumenes: deps.Resumenes,
+		reportes: deps.Reportes,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", api.health)
 	mux.HandleFunc("POST /api/v1/auth/login", api.login)
+	mux.HandleFunc("POST /api/v1/publico/consulta", api.consultaPublica)
+	mux.HandleFunc("GET /api/v1/publico/comprobantes/{id}/pdf", api.descargarPDFPublico)
+	mux.HandleFunc("GET /api/v1/publico/comprobantes/{id}/xml", api.descargarXMLPublico)
 
 	authenticated := platformauth.Authenticate(api.lookupSession)
 	admin := func(handler http.HandlerFunc) http.Handler {
@@ -63,12 +73,17 @@ func NewAPIHandler(deps Dependencies) http.Handler {
 	mux.Handle("GET /api/v1/auth/me", authenticated(http.HandlerFunc(api.me)))
 	mux.Handle("POST /api/v1/comprobantes", authenticated(http.HandlerFunc(api.emitirComprobante)))
 	mux.Handle("GET /api/v1/comprobantes/{id}", authenticated(http.HandlerFunc(api.obtenerComprobante)))
+	mux.Handle("GET /api/v1/comprobantes/{id}/pdf", authenticated(http.HandlerFunc(api.descargarPDFComprobante)))
+	mux.Handle("GET /api/v1/comprobantes/{id}/xml", authenticated(http.HandlerFunc(api.descargarXMLComprobante)))
+	mux.Handle("GET /api/v1/comprobantes/{id}/cdr", authenticated(http.HandlerFunc(api.descargarCDRComprobante)))
 	mux.Handle("GET /api/v1/comprobantes", authenticated(http.HandlerFunc(api.listarComprobantes)))
 	mux.Handle("POST /api/v1/comprobantes/{id}/reenviar", admin(api.reenviarComprobante))
 	mux.Handle("POST /api/v1/comprobantes/{id}/baja", admin(api.solicitarBajaComprobante))
 	mux.Handle("POST /api/v1/resumenes", admin(api.generarResumen))
 	mux.Handle("GET /api/v1/resumenes", admin(api.listarResumenes))
 	mux.Handle("GET /api/v1/resumenes/{id}", admin(api.obtenerResumen))
+	mux.Handle("GET /api/v1/reportes/ventas", admin(api.reporteVentasJSON))
+	mux.Handle("GET /api/v1/reportes/ventas.csv", admin(api.reporteVentasCSV))
 	mux.Handle("POST /api/v1/clientes", authenticated(http.HandlerFunc(api.crearCliente)))
 	mux.Handle("GET /api/v1/clientes", authenticated(http.HandlerFunc(api.listarClientes)))
 	mux.Handle("GET /api/v1/clientes/{id}", authenticated(http.HandlerFunc(api.obtenerCliente)))

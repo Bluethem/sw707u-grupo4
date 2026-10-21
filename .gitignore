@@ -12,3 +12,5 @@ vendor/
 
 # local go binaries
 src/backend/seed
+
+data/blobs/

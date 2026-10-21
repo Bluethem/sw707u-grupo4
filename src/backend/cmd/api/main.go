@@ -25,6 +25,18 @@ import (
 	redislib "github.com/redis/go-redis/v9"
 )
 
+type emisorEmpresaReader struct {
+	repo *postgres.EmpresaRepository
+}
+
+func (r emisorEmpresaReader) Obtener(ctx context.Context, empresaID string) (string, string, error) {
+	e, err := r.repo.Obtener(ctx, empresaID)
+	if err != nil {
+		return "", "", err
+	}
+	return e.RUC, e.RazonSocial, nil
+}
+
 func main() {
 	if err := run(); err != nil {
 		log.Printf("api: %v", err)
@@ -81,11 +93,12 @@ func run() error {
 		Stock:     postgres.NewStock(),
 		Productos: postgres.NewProductoEmisionConsulta(pool),
 		Series:    postgres.NewSeries(),
-		Comps:   comprobantes,
-		Outbox:  postgres.NewOutbox(),
-		Firma:   firma.Fake{},
-		PDF:     pdf.Fake{},
-		Storage: storage.NewFake(),
+		Comps:     comprobantes,
+		Outbox:    postgres.NewOutbox(),
+		Firma:     firma.Fake{},
+		PDF:       pdf.New(cfg.FrontendPublicURL),
+		Storage:   storage.NewFS(cfg.BlobDir),
+		Empresas:  emisorEmpresaReader{repo: empresas},
 	}
 	query := postgres.NewComprobanteQuery(pool)
 	comprobanteSvc := &factapp.Comprobantes{
@@ -96,10 +109,20 @@ func run() error {
 	resumenSvc := &factapp.Resumenes{
 		UoW: uow, Store: resumenRepo, Outbox: postgres.NewOutbox(),
 	}
+	empresaReader := emisorEmpresaReader{repo: empresas}
+	documentosSvc := &factapp.Documentos{
+		Query: query, Storage: emisor.Storage, Firma: emisor.Firma, Pdf: emisor.PDF,
+		Empresa: func(ctx context.Context, empresaID string) (string, string, error) {
+			return empresaReader.Obtener(ctx, empresaID)
+		},
+	}
+	consultaStore := redisadapter.NewConsultaStore(redisClient)
+	consultaSvc := &factapp.Consulta{Repo: query, Tokens: consultaStore}
+	reporteSvc := &factapp.Reportes{Store: postgres.NewReporteRepository(pool)}
 	handler := httpapi.NewAPIHandler(httpapi.Dependencies{
 		Gestion: gestion, Usuarios: usuarios, Sessions: sessions,
-		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc,
-		Resumenes: resumenSvc, CORSOrigins: cfg.CORSOrigins,
+		Emisor: emisor, Query: query, Comprobantes: comprobanteSvc, Documentos: documentosSvc,
+		Consulta: consultaSvc, Resumenes: resumenSvc, Reportes: reporteSvc, CORSOrigins: cfg.CORSOrigins,
 	})
 
 	server := &http.Server{

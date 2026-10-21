@@ -8,6 +8,8 @@ App Next.js 15 (App Router) para login, POS (`/caja`) y comprobantes.
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Base de la API Go (default `http://localhost:8080`) |
 
+En el backend, `FRONTEND_PUBLIC_URL` (Compose / `.env`) debe coincidir con la URL pública de esta app para el QR del PDF (`/consulta`).
+
 Copia `.env.example` en la raíz del monorepo si usas Docker Compose; para desarrollo local en el host:
 
 ```bash
@@ -80,3 +82,13 @@ En `/comprobantes/[id]`, si `GET /api/v1/auth/me` devuelve `rol === "administrad
 - **Dar de baja** (factura `ACEPTADO`) o **Solicitar baja** (boleta `ACEPTADO`/`PENDIENTE`): pide motivo → `POST …/baja`. La baja de boleta queda en `PENDIENTE_BAJA` hasta un resumen del día de emisión.
 
 En `/admin/resumenes`: lista `GET /api/v1/resumenes`, elige fecha y **Generar** (`POST /api/v1/resumenes` con `{ "fecha": "YYYY-MM-DD" }`). El worker procesa el job `resumen_diario` hasta `ACEPTADO`/`RECHAZADO`.
+
+## M7 — listado, consulta pública y reportes
+
+| Ruta | Uso |
+|---|---|
+| `/comprobantes` | Filtros `tipo`, `estado`, fechas (máx. 90 días), `serie`, `numero`, búsqueda `q` (cliente) |
+| `/consulta` | Formulario público → `POST /api/v1/publico/consulta`; enlaces de descarga PDF/XML con `token` |
+| `/admin/reportes` | Solo admin: `GET /api/v1/reportes/ventas`, export CSV y gráficos SVG en pantalla |
+
+La consulta acepta query params opcionales (`ruc`, `serie`, `numero`) para prellenar el formulario (p. ej. desde el QR del PDF).

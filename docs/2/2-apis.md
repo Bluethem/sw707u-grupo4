@@ -199,9 +199,108 @@ Detalle con líneas y `baja_motivo` si aplica.
 
 ### `GET /api/v1/comprobantes`
 
-Query: `tipo`, `estado`, `fecha_desde`, `fecha_hasta` (`YYYY-MM-DD`), `limit`, `offset`.
+Query: `tipo`, `estado`, `fecha_desde`, `fecha_hasta` (`YYYY-MM-DD`), `serie`, `numero`, `q` (razón social o documento del cliente), `limit`, `offset`.
+
+- `serie` se normaliza a mayúsculas; `numero` es el correlativo del comprobante (entero ≥ 1).
+- Si `fecha_desde` y `fecha_hasta` abarcan más de **90 días** → `400` `{ "error": "rango de fechas excede 90 dias" }`.
 
 Respuesta: `{ "items": […], "total": N }`.
+
+### Descargas (M7) — auth cajero/admin
+
+| Método | Ruta | Content-Type | Notas |
+|---|---|---|---|
+| `GET` | `/api/v1/comprobantes/{id}/pdf` | `application/pdf` | Si falta blob, se regenera desde datos del comprobante |
+| `GET` | `/api/v1/comprobantes/{id}/xml` | `application/xml` | Idem |
+| `GET` | `/api/v1/comprobantes/{id}/cdr` | `application/octet-stream` | Solo tras estado final con CDR en almacenamiento |
+
+Errores documentos:
+
+| HTTP | Cuándo |
+|---|---|
+| 404 | Comprobante no encontrado (tenant) o CDR inexistente con estado final (`ACEPTADO` u otro distinto de `PENDIENTE`/`ENVIADO`) sin archivo en almacenamiento |
+| 409 | CDR aún no disponible: comprobante en `PENDIENTE` o `ENVIADO`, o aún no hay CDR persistido tras el envío |
+
+Respuesta binaria con `Content-Disposition: attachment; filename="{serie}-{numero}.{ext}"`.
+
+Archivos en disco local vía `BLOB_DIR` (clave `{comprobante_id}.pdf|xml|cdr`). Ver `src/backend/README.md`.
+
+---
+
+## Consulta pública (M7)
+
+Sin autenticación de usuario interno. Rate limit por IP (`RemoteAddr` del request): tras 10 intentos fallidos en 15 min → `429` `{ "error": "demasiados intentos" }`.
+
+### `POST /api/v1/publico/consulta`
+
+```json
+{
+  "ruc": "20100070970",
+  "tipo_doc": "DNI",
+  "numero": "12345678",
+  "serie": "B001",
+  "numero_comprobante": 1,
+  "fecha": "2026-10-20",
+  "monto": "236.00"
+}
+```
+
+- `fecha` = fecha UTC de `creado_en` del comprobante (`YYYY-MM-DD`).
+- `monto` = total con 2 decimales, debe coincidir exactamente.
+- Comprobante con más de **365 días** desde `creado_en` → `410` `{ "error": "consulta expirada; solicite el archivo a la empresa" }` (cuenta como intento fallido para rate limit).
+- Datos que no coinciden → `404` `{ "error": "datos no coinciden" }`.
+
+Respuesta `200`:
+
+```json
+{
+  "id": "<uuid>",
+  "tipo": "boleta",
+  "serie": "B001",
+  "numero": 1,
+  "fecha": "2026-10-20",
+  "total": "236.00",
+  "estado": "ACEPTADO",
+  "razon_social_emisor": "Empresa API SAC",
+  "token": "<sesión consulta>"
+}
+```
+
+El `token` dura **15 minutos** en Redis y autoriza descargas públicas del mismo comprobante.
+
+### `GET /api/v1/publico/comprobantes/{id}/pdf?token=…`
+
+### `GET /api/v1/publico/comprobantes/{id}/xml?token=…`
+
+Token inválido o comprobante distinto al del token → `401` `{ "error": "token invalido" }`.
+
+---
+
+## Reporte de ventas (M7) — admin
+
+Query obligatoria en la práctica: `fecha_desde`, `fecha_hasta` (`YYYY-MM-DD`). Si ambas faltan, el backend usa el día UTC actual. Rango máximo **90 días** (mismo mensaje que listado).
+
+### `GET /api/v1/reportes/ventas`
+
+Respuesta `200`:
+
+```json
+{
+  "fecha_desde": "2026-10-20",
+  "fecha_hasta": "2026-10-20",
+  "por_tipo": [
+    { "tipo": "boleta", "cantidad": 2, "valor_venta": "200.00", "igv": "36.00", "total": "236.00" }
+  ],
+  "anulados": { "cantidad": 0, "total": "0.00" },
+  "totales": { "tipo": "", "cantidad": 2, "valor_venta": "200.00", "igv": "36.00", "total": "236.00" }
+}
+```
+
+Cuenta comprobantes no anulados en totales; bloque `anulados` resume comprobantes en `ANULADA` o `PENDIENTE_BAJA` del período.
+
+### `GET /api/v1/reportes/ventas.csv`
+
+Misma query de fechas. CSV UTF-8 con cabecera `tipo,cantidad,valor_venta,igv,total` y fila final `totales,…`.
 
 ---
 

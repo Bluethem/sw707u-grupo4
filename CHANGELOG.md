@@ -9,6 +9,13 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/) de 
 
 ### Added
 
+- **M7** documentos, consulta pública y reporte de ventas.
+  - Almacenamiento FS (`BLOB_DIR`), UBL/PDF con QR (`FRONTEND_PUBLIC_URL`), descargas autenticadas PDF/XML/CDR y regeneración si falta blob.
+  - Listado ampliado: `serie`, `numero`, `q`, tope 90 días en fechas.
+  - API pública: `POST /api/v1/publico/consulta`, descargas PDF/XML con token Redis (15 min, rate limit por IP).
+  - Reporte admin: `GET /api/v1/reportes/ventas` (JSON) y `ventas.csv`.
+  - UI: filtros en `/comprobantes`, portal `/consulta`, `/admin/reportes` con CSV y gráficos SVG.
+  - E2E `TestE2E_Documentos_EmitirDescargarYConsultar`.
 - **M6+** reenvío manual, baja de factura/boleta y resumen diario de boletas (Fake SUNAT).
   - API admin: `POST /comprobantes/{id}/reenviar`, `POST /comprobantes/{id}/baja`, `POST|GET /resumenes`, `GET /resumenes/{id}`.
   - Migración `000006_m6_plus`: `resumenes_diarios`, `resumen_comprobantes`, `baja_motivo`, outbox con `referencia_id` y `comprobante_id` nullable.
