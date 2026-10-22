@@ -148,7 +148,7 @@ func ensureDemoCatalog(ctx context.Context, service *gestionapp.Service, empresa
 		return fmt.Errorf("listar productos: %w", err)
 	}
 	for _, p := range items {
-		if p.Codigo == defaultProductoCodigo {
+		if p.Producto.Codigo == defaultProductoCodigo {
 			return nil
 		}
 	}
