@@ -168,6 +168,42 @@ func (a *API) listarMovimientosProducto(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"items": response, "total": total})
 }
 
+func (a *API) dependenciasProducto(w http.ResponseWriter, r *http.Request) {
+	current, _ := platformauth.UserFromContext(r.Context())
+	if a.gestion == nil {
+		writeError(w, http.StatusInternalServerError, "error interno")
+		return
+	}
+	deps, err := a.gestion.DependenciasProducto(r.Context(), current.EmpresaID, r.PathValue("id"))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	comprobantes := make([]any, 0, len(deps))
+	for _, d := range deps {
+		comprobantes = append(comprobantes, map[string]any{
+			"id": d.ID, "tipo": d.Tipo, "serie": d.Serie, "numero": d.Numero, "estado": d.Estado,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total_comprobantes": len(deps),
+		"comprobantes":       comprobantes,
+	})
+}
+
+func (a *API) eliminarProducto(w http.ResponseWriter, r *http.Request) {
+	current, _ := platformauth.UserFromContext(r.Context())
+	if a.gestion == nil {
+		writeError(w, http.StatusInternalServerError, "error interno")
+		return
+	}
+	if err := a.gestion.EliminarProducto(r.Context(), current.EmpresaID, r.PathValue("id")); err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func listarProductosFilter(r *http.Request) (gestionapp.ListarProductosFilter, error) {
 	query := r.URL.Query()
 	filtro := gestionapp.ListarProductosFilter{Q: query.Get("q")}

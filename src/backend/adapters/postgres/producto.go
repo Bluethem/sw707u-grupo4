@@ -151,6 +151,71 @@ func (r *ProductoRepository) Actualizar(ctx context.Context, p gestiondomain.Pro
 	return p, nil
 }
 
+func (r *ProductoRepository) DependenciasComprobantes(
+	ctx context.Context,
+	empresaID, productoID string,
+) ([]gestionapp.DependenciaComprobante, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.id, c.tipo, c.serie, c.numero, c.estado
+		FROM comprobante_lineas cl
+		JOIN comprobantes c ON c.id = cl.comprobante_id
+		WHERE c.empresa_id = $1 AND cl.producto_id = $2
+		GROUP BY c.id, c.tipo, c.serie, c.numero, c.estado
+		ORDER BY c.tipo, c.serie, c.numero
+		LIMIT 100`,
+		empresaID, productoID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("dependencias producto: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]gestionapp.DependenciaComprobante, 0)
+	for rows.Next() {
+		var d gestionapp.DependenciaComprobante
+		if err := rows.Scan(&d.ID, &d.Tipo, &d.Serie, &d.Numero, &d.Estado); err != nil {
+			return nil, fmt.Errorf("leer dependencia: %w", err)
+		}
+		result = append(result, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("dependencias producto: %w", err)
+	}
+	return result, nil
+}
+
+func (r *ProductoRepository) Eliminar(ctx context.Context, empresaID, productoID string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("eliminar producto: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM stock_movimientos WHERE empresa_id = $1 AND producto_id = $2`,
+		empresaID, productoID,
+	); err != nil {
+		return fmt.Errorf("eliminar movimientos: %w", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM productos_stock WHERE empresa_id = $1 AND producto_id = $2`,
+		empresaID, productoID,
+	); err != nil {
+		return fmt.Errorf("eliminar stock: %w", err)
+	}
+	tag, err := tx.Exec(ctx,
+		`DELETE FROM productos WHERE empresa_id = $1 AND id = $2`,
+		empresaID, productoID,
+	)
+	if err != nil {
+		return fmt.Errorf("eliminar producto: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: producto no encontrado", gestiondomain.ErrNoEncontrado)
+	}
+	return tx.Commit(ctx)
+}
+
 type productoScanner interface {
 	Scan(dest ...any) error
 }
