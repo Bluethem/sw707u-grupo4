@@ -25,4 +25,8 @@ type ResumenDiario struct {
 type ResumenComprobanteItem struct {
 	ComprobanteID string
 	Anulado       bool
+	Tipo          TipoComprobante
+	Serie         string
+	Numero        int64
+	Estado        EstadoComprobante
 }

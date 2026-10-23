@@ -17,7 +17,7 @@ func TestStockInventario_AjusteEntradaSalida(t *testing.T) {
 	pool := newClienteTestPool(t, ctx)
 	repo := NewProductoRepository(pool)
 	empresaID := insertEmpresaClienteTest(t, ctx, pool)
-	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo)
+	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo, nil)
 
 	stock10 := int64(10)
 	p, err := repo.Crear(ctx, gestiondomain.Producto{
@@ -58,7 +58,7 @@ func TestStockInventario_AjusteSalidaInsuficiente(t *testing.T) {
 	pool := newClienteTestPool(t, ctx)
 	repo := NewProductoRepository(pool)
 	empresaID := insertEmpresaClienteTest(t, ctx, pool)
-	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo)
+	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo, nil)
 
 	stock2 := int64(2)
 	p, err := repo.Crear(ctx, gestiondomain.Producto{
@@ -88,7 +88,7 @@ func TestStockInventario_AjusteSinControlStock(t *testing.T) {
 	pool := newClienteTestPool(t, ctx)
 	repo := NewProductoRepository(pool)
 	empresaID := insertEmpresaClienteTest(t, ctx, pool)
-	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo)
+	svc := gestionapp.NewService(nil, nil, nil, nil, repo, repo, nil)
 
 	p, err := repo.Crear(ctx, gestiondomain.Producto{
 		ID: uuid.NewString(), EmpresaID: empresaID, Codigo: "SVC-AJ", Descripcion: "Servicio",

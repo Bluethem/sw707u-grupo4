@@ -13,7 +13,6 @@ import (
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -21,6 +20,8 @@ const (
 	defaultRazonSocial    = "FlowFacture Demo SAC"
 	defaultAdminEmail     = "admin@flowfacture.local"
 	defaultAdminPassword  = "Admin123!"
+	defaultCajeroEmail    = "cajero@flowfacture.local"
+	defaultCajeroPassword = "Cajero123!"
 	defaultProductoCodigo = "SKU-1"
 )
 
@@ -61,31 +62,54 @@ func run() error {
 	razonSocial := getenv("SEED_RAZON_SOCIAL", defaultRazonSocial)
 	adminEmail := getenv("SEED_ADMIN_EMAIL", defaultAdminEmail)
 	adminPassword := getenv("SEED_ADMIN_PASSWORD", defaultAdminPassword)
+	cajeroEmail := getenv("SEED_CAJERO_EMAIL", defaultCajeroEmail)
+	cajeroPassword := getenv("SEED_CAJERO_PASSWORD", defaultCajeroPassword)
 
 	empresaID, createdFresh, err := ensureEmpresa(ctx, pool, service, ruc, razonSocial)
 	if err != nil {
 		return err
 	}
 
-	if err := ensureAdmin(ctx, service, usuarios, empresaID, adminEmail, adminPassword); err != nil {
+	if err := ensureUsuario(ctx, service, usuarios, empresaID, adminEmail, adminPassword, "Administrador", gestiondomain.RolAdministrador); err != nil {
+		return err
+	}
+	if err := ensureUsuario(ctx, service, usuarios, empresaID, cajeroEmail, cajeroPassword, "Cajero demo", gestiondomain.RolCajero); err != nil {
 		return err
 	}
 	if err := ensureSeries(ctx, service, empresaID); err != nil {
 		return err
 	}
-	if err := ensureDemoCatalog(ctx, service, empresaID); err != nil {
-		return err
-	}
 	if err := ensureConfigCatalogo(ctx, pool, empresaID); err != nil {
 		return err
 	}
+	if err := ensureDemoCatalog(ctx, service, empresaID); err != nil {
+		return err
+	}
+	if err := ensureDemoClientes(ctx, service, empresaID); err != nil {
+		return err
+	}
 
+	ventas, err := ensureDemoVentas(ctx, pool, empresaID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Seed completado\nEmpresa: %s (%s)\nAdmin: %s / %s\nCajero: %s / %s\nSeries: B001, F001\nProductos: %d (incluye %s)\nClientes: %d\n",
+		razonSocial, ruc, adminEmail, adminPassword, cajeroEmail, cajeroPassword,
+		len(demoProductos), defaultProductoCodigo, len(demoClientes))
 	if createdFresh {
-		fmt.Printf("Seed completado\nEmpresa: %s (%s)\nEmail: %s\nPassword: %s\nSeries: B001, F001\nProducto: %s\n",
-			razonSocial, ruc, adminEmail, adminPassword, defaultProductoCodigo)
+		fmt.Println("Empresa creada en esta ejecución.")
 	} else {
-		fmt.Printf("Seed ya aplicado / completado\nEmpresaID: %s\nEmail: %s\nPassword: %s\nProducto: %s\n",
-			empresaID, adminEmail, adminPassword, defaultProductoCodigo)
+		fmt.Printf("EmpresaID existente: %s\n", empresaID)
+	}
+	if ventas.Aplicado {
+		fmt.Printf("Comprobantes demo: %d boletas + %d facturas (hoy: %d vigentes / %d anulados)\n",
+			ventas.Boletas, ventas.Facturas, ventas.HoyVigentes, ventas.HoyAnulados)
+		fmt.Printf("Resúmenes diarios: %d aceptados (días -%v). Hoy y ayer quedan libres para Generar.\n",
+			len(ventas.ResumenDias), ventas.ResumenDias)
+		fmt.Println("En /admin/reportes usa el rango de los últimos 30 días para ver el histórico.")
+	} else {
+		fmt.Println("Ventas demo ya aplicadas (no se duplicaron comprobantes).")
 	}
 	return nil
 }
@@ -101,7 +125,7 @@ func ensureEmpresa(ctx context.Context, pool *pgxpool.Pool, service *gestionapp.
 	}
 
 	empresa, err := service.CrearEmpresa(ctx, gestionapp.CrearEmpresaInput{
-		RUC: ruc, RazonSocial: razonSocial, DomicilioFiscal: "Lima", Regimen: "general",
+		RUC: ruc, RazonSocial: razonSocial, DomicilioFiscal: "Av. Javier Prado 1234, Lima", Regimen: "general",
 	})
 	if err == nil {
 		return empresa.ID, true, nil
@@ -115,19 +139,24 @@ func ensureEmpresa(ctx context.Context, pool *pgxpool.Pool, service *gestionapp.
 	return id, false, nil
 }
 
-func ensureAdmin(ctx context.Context, service *gestionapp.Service, usuarios gestionapp.UsuarioRepository, empresaID, email, password string) error {
+func ensureUsuario(
+	ctx context.Context,
+	service *gestionapp.Service,
+	usuarios gestionapp.UsuarioRepository,
+	empresaID, email, password, nombre string,
+	rol gestiondomain.Rol,
+) error {
 	_, err := usuarios.ObtenerPorEmail(ctx, gestiondomain.NormalizarEmail(email))
 	if err == nil {
 		return nil
 	}
 	if !errors.Is(err, gestiondomain.ErrNoEncontrado) {
-		return fmt.Errorf("buscar admin: %w", err)
+		return fmt.Errorf("buscar usuario %s: %w", email, err)
 	}
 	if _, err := service.CrearUsuario(ctx, empresaID, gestionapp.CrearUsuarioInput{
-		Email: email, Password: password, Nombre: "Administrador",
-		Rol: gestiondomain.RolAdministrador,
+		Email: email, Password: password, Nombre: nombre, Rol: rol,
 	}); err != nil && !errors.Is(err, gestiondomain.ErrConflicto) {
-		return fmt.Errorf("crear administrador: %w", err)
+		return fmt.Errorf("crear usuario %s: %w", email, err)
 	}
 	return nil
 }
@@ -144,35 +173,6 @@ func ensureSeries(ctx context.Context, service *gestionapp.Service, empresaID st
 	return nil
 }
 
-func ensureDemoCatalog(ctx context.Context, service *gestionapp.Service, empresaID string) error {
-	items, _, err := service.ListarProductos(ctx, empresaID, gestionapp.ListarProductosFilter{
-		Q: defaultProductoCodigo, Limit: 5,
-	})
-	if err != nil {
-		return fmt.Errorf("listar productos: %w", err)
-	}
-	for _, p := range items {
-		if p.Producto.Codigo == defaultProductoCodigo {
-			return nil
-		}
-	}
-	stock := int64(100)
-	if _, err := service.CrearProducto(ctx, empresaID, gestionapp.CrearProductoInput{
-		Codigo:        defaultProductoCodigo,
-		Descripcion:   "Producto demo",
-		Unidad:        "NIU",
-		Precio:        decimal.RequireFromString("10.00"),
-		Afectacion:    "gravado",
-		ControlaStock: true,
-		StockInicial:  &stock,
-	}); err != nil && !errors.Is(err, gestiondomain.ErrConflicto) {
-		return fmt.Errorf("crear producto demo: %w", err)
-	}
-	return nil
-}
-
-// ensureConfigCatalogo crea la fila de config_catalogo con valores default si no existe.
-// Usa ON CONFLICT DO NOTHING para ser idempotente.
 func ensureConfigCatalogo(ctx context.Context, pool *pgxpool.Pool, empresaID string) error {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO config_catalogo (empresa_id)

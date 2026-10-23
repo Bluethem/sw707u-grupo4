@@ -73,6 +73,10 @@ func resumenResponse(r *domain.ResumenDiario) map[string]any {
 		comps = append(comps, map[string]any{
 			"comprobante_id": c.ComprobanteID,
 			"anulado":        c.Anulado,
+			"tipo":           c.Tipo,
+			"serie":          c.Serie,
+			"numero":         c.Numero,
+			"estado":         c.Estado,
 		})
 	}
 	return map[string]any{

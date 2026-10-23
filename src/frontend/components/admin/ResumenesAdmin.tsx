@@ -9,6 +9,14 @@ import { ApiError, apiFetch } from "@/lib/api";
 import type { ResumenDiarioItem } from "@/lib/caja-types";
 import { tdStyle, thStyle } from "./table-styles";
 
+function etiquetaComprobante(c: ResumenDiarioItem["comprobantes"][number]): string {
+  if (c.serie && c.numero != null) {
+    const tipo = c.tipo ? `${c.tipo} ` : "";
+    return `${tipo}${c.serie}-${c.numero}`;
+  }
+  return c.comprobante_id;
+}
+
 function todayISO(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -49,6 +57,23 @@ export function ResumenesAdmin() {
     void load();
   }, [load]);
 
+  async function toggleDetalle(r: ResumenDiarioItem) {
+    if (expandedId === r.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(r.id);
+    if ((r.comprobantes ?? []).length > 0) {
+      return;
+    }
+    try {
+      const detalle = await apiFetch<ResumenDiarioItem>(`/api/v1/resumenes/${encodeURIComponent(r.id)}`);
+      setItems((prev) => prev.map((item) => (item.id === r.id ? detalle : item)));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo cargar el detalle");
+    }
+  }
+
   async function generar() {
     const f = fecha.trim();
     if (!f) {
@@ -64,7 +89,8 @@ export function ResumenesAdmin() {
         body: { fecha: f },
       });
       setNotice(`Resumen ${created.fecha} generado (${created.estado}).`);
-      void load();
+      await load();
+      setItems((prev) => prev.map((item) => (item.id === created.id ? created : item)));
       setExpandedId(created.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo generar el resumen");
@@ -167,7 +193,7 @@ export function ResumenesAdmin() {
                           type="button"
                           variant="ghost"
                           style={{ padding: "4px 10px" }}
-                          onClick={() => setExpandedId((cur) => (cur === r.id ? null : r.id))}
+                          onClick={() => void toggleDetalle(r)}
                         >
                           {expandedId === r.id ? "Ocultar" : "Detalle"}
                         </Button>
@@ -186,8 +212,13 @@ export function ResumenesAdmin() {
                                     href={`/comprobantes/${encodeURIComponent(c.comprobante_id)}`}
                                     style={{ color: "var(--color-cyan-edge)" }}
                                   >
-                                    {c.comprobante_id}
+                                    {etiquetaComprobante(c)}
                                   </Link>
+                                  {c.estado ? (
+                                    <span style={{ color: "var(--color-warm-gray)", marginLeft: "8px" }}>
+                                      {c.estado}
+                                    </span>
+                                  ) : null}
                                   {c.anulado ? (
                                     <span style={{ color: "var(--color-warm-gray)", marginLeft: "8px" }}>
                                       (anulado en resumen)

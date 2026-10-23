@@ -16,6 +16,10 @@ type resumenAPI struct {
 	Comprobantes []struct {
 		ComprobanteID string `json:"comprobante_id"`
 		Anulado       bool   `json:"anulado"`
+		Tipo          string `json:"tipo"`
+		Serie         string `json:"serie"`
+		Numero        int64  `json:"numero"`
+		Estado        string `json:"estado"`
 	} `json:"comprobantes"`
 }
 
@@ -42,9 +46,10 @@ func TestAPI_Resumen_GenerarListarObtener(t *testing.T) {
 	requireStatus(t, genRes, http.StatusCreated)
 	var generado resumenAPI
 	decodeResponse(t, genRes, &generado)
-	if generado.Estado != "PENDIENTE" || len(generado.Comprobantes) != 1 {
+	if generado.Estado != "PENDIENTE" {
 		t.Fatalf("resumen generado inesperado: %+v", generado)
 	}
+	assertResumenReferenciaBoleta(t, generado, emitido)
 
 	listRes := h.request(t, http.MethodGet, "/api/v1/resumenes", seed.Token, nil)
 	requireStatus(t, listRes, http.StatusOK)
@@ -53,13 +58,29 @@ func TestAPI_Resumen_GenerarListarObtener(t *testing.T) {
 	if len(lista) != 1 || lista[0].ID != generado.ID {
 		t.Fatalf("lista resumenes: %+v", lista)
 	}
+	assertResumenReferenciaBoleta(t, lista[0], emitido)
 
 	getRes := h.request(t, http.MethodGet, "/api/v1/resumenes/"+generado.ID, seed.Token, nil)
 	requireStatus(t, getRes, http.StatusOK)
 	var detalle resumenAPI
 	decodeResponse(t, getRes, &detalle)
-	if detalle.ID != generado.ID || len(detalle.Comprobantes) != 1 {
+	if detalle.ID != generado.ID {
 		t.Fatalf("detalle resumen: %+v", detalle)
+	}
+	assertResumenReferenciaBoleta(t, detalle, emitido)
+}
+
+func assertResumenReferenciaBoleta(t *testing.T, resumen resumenAPI, boleta comprobanteAPI) {
+	t.Helper()
+	if len(resumen.Comprobantes) != 1 {
+		t.Fatalf("resumen debe referenciar las boletas del día, got %+v", resumen.Comprobantes)
+	}
+	item := resumen.Comprobantes[0]
+	if item.ComprobanteID != boleta.ID || item.Anulado {
+		t.Fatalf("referencia inesperada: %+v", item)
+	}
+	if item.Tipo != boleta.Tipo || item.Serie != boleta.Serie || item.Numero != boleta.Numero {
+		t.Fatalf("serie/numero ausentes en referencia: %+v (boleta %+v)", item, boleta)
 	}
 }
 

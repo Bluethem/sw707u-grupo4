@@ -57,7 +57,8 @@ func TestGestionRepositoriesTenantIsolation(t *testing.T) {
 	series := NewSeriesGestionRepository(pool)
 	clientes := NewClienteRepository(pool)
 	productos := NewProductoRepository(pool)
-	service := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
+	configCatalogo := NewConfigCatalogoRepository(pool)
+	service := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos, configCatalogo)
 
 	sufijo := uuid.NewString()
 	empresaA, err := service.CrearEmpresa(ctx, gestionapp.CrearEmpresaInput{

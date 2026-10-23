@@ -25,7 +25,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Corre migraciones + demo (empresa/admin/series/producto). Idempotente: exit 0 si ya existe.
+  # Corre migraciones + demo (empresa, usuarios, catálogo, clientes, ventas y resúmenes). Idempotente.
   seed:
     build:
       context: ./src/backend

@@ -83,6 +83,10 @@ export type ComprobanteItem = {
 export type ResumenComprobanteItem = {
   comprobante_id: string;
   anulado: boolean;
+  tipo?: TipoComprobante | string;
+  serie?: string;
+  numero?: number;
+  estado?: string;
 };
 
 export type ResumenDiarioItem = {

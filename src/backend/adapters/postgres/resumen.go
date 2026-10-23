@@ -44,6 +44,9 @@ func (r *ResumenRepository) List(ctx context.Context, empresaID string) ([]domai
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("recorrer resumenes: %w", err)
 	}
+	if err := r.attachComprobantes(ctx, items); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -60,28 +63,11 @@ func (r *ResumenRepository) GetByID(ctx context.Context, empresaID, id string) (
 	if err != nil {
 		return nil, fmt.Errorf("obtener resumen: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT comprobante_id, anulado
-		FROM resumen_comprobantes
-		WHERE resumen_id = $1
-		ORDER BY comprobante_id`,
-		id,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("listar comprobantes del resumen: %w", err)
+	items := []domain.ResumenDiario{resumen}
+	if err := r.attachComprobantes(ctx, items); err != nil {
+		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var item domain.ResumenComprobanteItem
-		if err := rows.Scan(&item.ComprobanteID, &item.Anulado); err != nil {
-			return nil, fmt.Errorf("leer comprobante resumen: %w", err)
-		}
-		resumen.Comprobantes = append(resumen.Comprobantes, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("recorrer comprobantes resumen: %w", err)
-	}
-	return &resumen, nil
+	return &items[0], nil
 }
 
 func (r *ResumenRepository) BoletasInformables(
@@ -233,6 +219,53 @@ func (r *ResumenRepository) UpdateEstado(
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("resumen %q no encontrado", resumenID)
+	}
+	return nil
+}
+
+func (r *ResumenRepository) attachComprobantes(ctx context.Context, items []domain.ResumenDiario) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]string, len(items))
+	index := make(map[string]int, len(items))
+	for i := range items {
+		ids[i] = items[i].ID
+		index[items[i].ID] = i
+		items[i].Comprobantes = []domain.ResumenComprobanteItem{}
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT rc.resumen_id, rc.comprobante_id, rc.anulado,
+		       c.tipo, c.serie, c.numero, c.estado
+		FROM resumen_comprobantes rc
+		JOIN comprobantes c ON c.id = rc.comprobante_id
+		WHERE rc.resumen_id = ANY($1)
+		ORDER BY c.serie, c.numero, c.id`,
+		ids,
+	)
+	if err != nil {
+		return fmt.Errorf("listar comprobantes de resumenes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var resumenID, tipo, estado string
+		var item domain.ResumenComprobanteItem
+		if err := rows.Scan(
+			&resumenID, &item.ComprobanteID, &item.Anulado,
+			&tipo, &item.Serie, &item.Numero, &estado,
+		); err != nil {
+			return fmt.Errorf("leer comprobante resumen: %w", err)
+		}
+		item.Tipo = domain.TipoComprobante(tipo)
+		item.Estado = domain.EstadoComprobante(estado)
+		i, ok := index[resumenID]
+		if !ok {
+			continue
+		}
+		items[i].Comprobantes = append(items[i].Comprobantes, item)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("recorrer comprobantes resumen: %w", err)
 	}
 	return nil
 }

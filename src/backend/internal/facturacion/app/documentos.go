@@ -23,11 +23,6 @@ func (d *Documentos) PDF(ctx context.Context, empresaID, id string) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	if d.Storage != nil {
-		if data, err := d.Storage.Leer(ctx, id+".pdf"); err == nil {
-			return data, nil
-		}
-	}
 	return d.regenerarPDF(ctx, c)
 }
 
