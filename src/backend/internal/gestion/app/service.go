@@ -46,11 +46,21 @@ type ListarClientesFilter struct {
 	Offset int
 }
 
+type DependenciaComprobante struct {
+	ID     string
+	Tipo   string
+	Serie  string
+	Numero int64
+	Estado string
+}
+
 type ProductoRepository interface {
 	Crear(context.Context, domain.Producto, *int64) (domain.Producto, error)
 	Obtener(context.Context, string, string) (ProductoDetalle, error)
 	Listar(context.Context, string, ListarProductosFilter) ([]ProductoDetalle, int, error)
 	Actualizar(context.Context, domain.Producto) (domain.Producto, error)
+	DependenciasComprobantes(ctx context.Context, empresaID, productoID string) ([]DependenciaComprobante, error)
+	Eliminar(ctx context.Context, empresaID, productoID string) error
 }
 
 type StockInventarioRepository interface {
@@ -58,6 +68,11 @@ type StockInventarioRepository interface {
 		context.Context, string, string, string, string, int64, string,
 	) (AjustarStockResult, error)
 	ListarMovimientos(context.Context, string, string, int, int) ([]domain.StockMovimiento, int, error)
+}
+
+type ConfigCatalogoRepository interface {
+	GetByEmpresaID(ctx context.Context, empresaID string) (domain.ConfigCatalogo, error)
+	Upsert(ctx context.Context, c domain.ConfigCatalogo) (domain.ConfigCatalogo, error)
 }
 
 type AjustarStockResult struct {
@@ -79,12 +94,13 @@ type ListarProductosFilter struct {
 }
 
 type Service struct {
-	empresas  EmpresaRepository
-	usuarios  UsuarioRepository
-	series    SerieRepository
-	clientes  ClienteRepository
-	productos ProductoRepository
-	stock     StockInventarioRepository
+	empresas       EmpresaRepository
+	usuarios       UsuarioRepository
+	series         SerieRepository
+	clientes       ClienteRepository
+	productos      ProductoRepository
+	stock          StockInventarioRepository
+	configCatalogo ConfigCatalogoRepository
 }
 
 func NewService(
@@ -94,11 +110,79 @@ func NewService(
 	clientes ClienteRepository,
 	productos ProductoRepository,
 	stock StockInventarioRepository,
+	configCatalogo ConfigCatalogoRepository,
 ) *Service {
 	return &Service{
 		empresas: empresas, usuarios: usuarios, series: series,
 		clientes: clientes, productos: productos, stock: stock,
+		configCatalogo: configCatalogo,
 	}
+}
+
+// ObtenerConfigCatalogo devuelve la configuración paramétrica de la empresa.
+// Si no existe fila en BD retorna los valores default sin error.
+func (s *Service) ObtenerConfigCatalogo(ctx context.Context, empresaID string) (domain.ConfigCatalogo, error) {
+	if empresaID == "" {
+		return domain.ConfigCatalogo{}, fmt.Errorf("%w: empresa requerida", domain.ErrInvalido)
+	}
+	return s.configCatalogo.GetByEmpresaID(ctx, empresaID)
+}
+
+type ActualizarConfigCatalogoInput struct {
+	PrecioMinimo           *string
+	PrecioMaximo           *string // cadena vacía = borrar el límite superior
+	CargaMaxFilas          *int
+	CargaMaxMB             *int
+	UnidadesPermitidas     []string
+	AfectacionesPermitidas []string
+}
+
+// ActualizarConfigCatalogo aplica los campos informados sobre la config actual y la persiste.
+func (s *Service) ActualizarConfigCatalogo(ctx context.Context, empresaID string, input ActualizarConfigCatalogoInput) (domain.ConfigCatalogo, error) {
+	if empresaID == "" {
+		return domain.ConfigCatalogo{}, fmt.Errorf("%w: empresa requerida", domain.ErrInvalido)
+	}
+	cfg, err := s.configCatalogo.GetByEmpresaID(ctx, empresaID)
+	if err != nil {
+		return domain.ConfigCatalogo{}, err
+	}
+	cfg.EmpresaID = empresaID
+
+	if input.PrecioMinimo != nil {
+		d, err := decimal.NewFromString(*input.PrecioMinimo)
+		if err != nil {
+			return domain.ConfigCatalogo{}, fmt.Errorf("%w: precio_minimo invalido", domain.ErrInvalido)
+		}
+		cfg.PrecioMinimo = d
+	}
+	if input.PrecioMaximo != nil {
+		if *input.PrecioMaximo == "" {
+			cfg.PrecioMaximo = nil
+		} else {
+			d, err := decimal.NewFromString(*input.PrecioMaximo)
+			if err != nil {
+				return domain.ConfigCatalogo{}, fmt.Errorf("%w: precio_maximo invalido", domain.ErrInvalido)
+			}
+			cfg.PrecioMaximo = &d
+		}
+	}
+	if input.CargaMaxFilas != nil {
+		cfg.CargaMaxFilas = *input.CargaMaxFilas
+	}
+	if input.CargaMaxMB != nil {
+		cfg.CargaMaxMB = *input.CargaMaxMB
+	}
+	if input.UnidadesPermitidas != nil {
+		cfg.UnidadesPermitidas = input.UnidadesPermitidas
+	}
+	if input.AfectacionesPermitidas != nil {
+		cfg.AfectacionesPermitidas = input.AfectacionesPermitidas
+	}
+
+	if err := domain.ValidarConfigCatalogo(cfg); err != nil {
+		return domain.ConfigCatalogo{}, err
+	}
+	return s.configCatalogo.Upsert(ctx, cfg)
 }
 
 type CrearEmpresaInput struct {
@@ -510,6 +594,23 @@ func (s *Service) ActualizarProducto(
 		return ProductoDetalle{}, err
 	}
 	return s.productos.Obtener(ctx, empresaID, productoID)
+}
+
+func (s *Service) DependenciasProducto(ctx context.Context, empresaID, productoID string) ([]DependenciaComprobante, error) {
+	if empresaID == "" || productoID == "" {
+		return nil, fmt.Errorf("%w: empresa y producto requeridos", domain.ErrInvalido)
+	}
+	return s.productos.DependenciasComprobantes(ctx, empresaID, productoID)
+}
+
+func (s *Service) EliminarProducto(ctx context.Context, empresaID, productoID string) error {
+	if empresaID == "" || productoID == "" {
+		return fmt.Errorf("%w: empresa y producto requeridos", domain.ErrInvalido)
+	}
+	if _, err := s.productos.Obtener(ctx, empresaID, productoID); err != nil {
+		return err
+	}
+	return s.productos.Eliminar(ctx, empresaID, productoID)
 }
 
 type AjustarStockInput struct {

@@ -54,7 +54,8 @@ func run() error {
 	series := postgres.NewSeriesGestionRepository(pool)
 	clientes := postgres.NewClienteRepository(pool)
 	productos := postgres.NewProductoRepository(pool)
-	service := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
+	configCatalogo := postgres.NewConfigCatalogoRepository(pool)
+	service := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos, configCatalogo)
 
 	ruc := getenv("SEED_RUC", defaultRUC)
 	razonSocial := getenv("SEED_RAZON_SOCIAL", defaultRazonSocial)
@@ -73,6 +74,9 @@ func run() error {
 		return err
 	}
 	if err := ensureDemoCatalog(ctx, service, empresaID); err != nil {
+		return err
+	}
+	if err := ensureConfigCatalogo(ctx, pool, empresaID); err != nil {
 		return err
 	}
 
@@ -163,6 +167,21 @@ func ensureDemoCatalog(ctx context.Context, service *gestionapp.Service, empresa
 		StockInicial:  &stock,
 	}); err != nil && !errors.Is(err, gestiondomain.ErrConflicto) {
 		return fmt.Errorf("crear producto demo: %w", err)
+	}
+	return nil
+}
+
+// ensureConfigCatalogo crea la fila de config_catalogo con valores default si no existe.
+// Usa ON CONFLICT DO NOTHING para ser idempotente.
+func ensureConfigCatalogo(ctx context.Context, pool *pgxpool.Pool, empresaID string) error {
+	_, err := pool.Exec(ctx, `
+		INSERT INTO config_catalogo (empresa_id)
+		VALUES ($1)
+		ON CONFLICT (empresa_id) DO NOTHING`,
+		empresaID,
+	)
+	if err != nil {
+		return fmt.Errorf("seed config_catalogo: %w", err)
 	}
 	return nil
 }

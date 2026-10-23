@@ -83,7 +83,8 @@ func run() error {
 	series := postgres.NewSeriesGestionRepository(pool)
 	clientes := postgres.NewClienteRepository(pool)
 	productos := postgres.NewProductoRepository(pool)
-	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos)
+	configCatalogo := postgres.NewConfigCatalogoRepository(pool)
+	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos, configCatalogo)
 	sessions := redisadapter.NewSessionStore(redisClient, cfg.SessionTTL)
 
 	uow := postgres.NewUnitOfWork(pool)
