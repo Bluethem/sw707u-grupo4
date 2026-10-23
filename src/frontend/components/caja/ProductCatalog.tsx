@@ -1,6 +1,7 @@
 "use client";
 
 import type { KeyboardEvent } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 import type { ProductoItem } from "@/lib/caja-types";
@@ -13,6 +14,25 @@ const cardSurface: React.CSSProperties = {
   boxShadow: "none",
 };
 
+type SortKey = "descripcion_asc" | "descripcion_desc" | "precio_asc" | "precio_desc" | "codigo_asc";
+
+function sortProducts(items: ProductoItem[], key: SortKey): ProductoItem[] {
+  return [...items].sort((a, b) => {
+    switch (key) {
+      case "descripcion_asc":
+        return a.descripcion.localeCompare(b.descripcion, "es", { sensitivity: "base" });
+      case "descripcion_desc":
+        return b.descripcion.localeCompare(a.descripcion, "es", { sensitivity: "base" });
+      case "precio_asc":
+        return parseFloat(a.precio) - parseFloat(b.precio);
+      case "precio_desc":
+        return parseFloat(b.precio) - parseFloat(a.precio);
+      case "codigo_asc":
+        return a.codigo.localeCompare(b.codigo, "es", { sensitivity: "base" });
+    }
+  });
+}
+
 type Props = {
   query: string;
   onQueryChange: (q: string) => void;
@@ -22,12 +42,16 @@ type Props = {
 };
 
 export function ProductCatalog({ query, onQueryChange, loading, products, onAdd }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>("descripcion_asc");
+
   function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && products[0]) {
       e.preventDefault();
-      onAdd(products[0]);
+      onAdd(sortProducts(products, sortKey)[0]);
     }
   }
+
+  const sorted = sortProducts(products, sortKey);
 
   return (
     <section style={{ ...cardSurface, display: "flex", flexDirection: "column", gap: "var(--spacing-12)" }}>
@@ -41,13 +65,39 @@ export function ProductCatalog({ query, onQueryChange, loading, products, onAdd 
       >
         Productos
       </h2>
-      <Input
-        placeholder="Buscar código o descripción…"
-        value={query}
-        onChange={(ev) => onQueryChange(ev.target.value)}
-        onKeyDown={onSearchKeyDown}
-        autoComplete="off"
-      />
+      <div style={{ display: "flex", gap: "var(--spacing-8)", alignItems: "flex-end" }}>
+        <div style={{ flex: "1 1 0" }}>
+          <Input
+            placeholder="Buscar código o descripción…"
+            value={query}
+            onChange={(ev) => onQueryChange(ev.target.value)}
+            onKeyDown={onSearchKeyDown}
+            autoComplete="off"
+          />
+        </div>
+        <label style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-4)" }}>
+          <span style={{ fontSize: "12px", color: "var(--color-warm-gray)" }}>Ordenar</span>
+          <select
+            value={sortKey}
+            onChange={(ev) => setSortKey(ev.target.value as SortKey)}
+            style={{
+              padding: "5px 10px",
+              borderRadius: "var(--radius-inputs)",
+              border: "1px solid var(--color-stone-muted)",
+              fontFamily: "var(--font-family-body)",
+              fontSize: "var(--text-body)",
+              background: "var(--color-pure-white)",
+              cursor: "pointer",
+            }}
+          >
+            <option value="descripcion_asc">Nombre A→Z</option>
+            <option value="descripcion_desc">Nombre Z→A</option>
+            <option value="precio_asc">Precio ↑</option>
+            <option value="precio_desc">Precio ↓</option>
+            <option value="codigo_asc">Código A→Z</option>
+          </select>
+        </label>
+      </div>
       <div
         style={{
           display: "flex",
@@ -59,10 +109,10 @@ export function ProductCatalog({ query, onQueryChange, loading, products, onAdd 
       >
         {loading ? (
           <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Buscando…</p>
-        ) : products.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Sin resultados</p>
         ) : (
-          products.map((p) => (
+          sorted.map((p) => (
             <button
               key={p.id}
               type="button"
