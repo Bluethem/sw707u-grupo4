@@ -10,7 +10,10 @@ coverage
 bin/
 vendor/
 
-# local go binaries
 src/backend/seed
 
 data/blobs/
+
+src/frontend/.pnpm-store/
+
+.venv/
