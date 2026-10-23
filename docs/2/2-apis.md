@@ -376,6 +376,129 @@ Modo local: `SUNAT_FAKE_MODE=accept|reject|error` (ver `scripts/README.md` y `sr
 
 ---
 
+## Configuración paramétrica del catálogo (M8) — admin
+
+### `GET /api/v1/configuracion/catalogo`
+
+Devuelve la configuración de validación del catálogo para la empresa del token. Si no hay fila en BD, retorna los valores por defecto.
+
+Respuesta `200`:
+
+```json
+{
+  "empresa_id": "…",
+  "precio_minimo": "0.01",
+  "precio_maximo": null,
+  "carga_max_filas": 500,
+  "carga_max_mb": 5,
+  "unidades_permitidas": ["NIU", "ZZ", "KGM", "LTR", "MTR", "BX"],
+  "afectaciones_permitidas": ["gravado", "exonerado", "inafecto"]
+}
+```
+
+`precio_maximo: null` significa sin límite superior.
+
+### `PATCH /api/v1/configuracion/catalogo`
+
+Actualiza la configuración. Todos los campos son opcionales.
+
+Body:
+
+```json
+{
+  "precio_minimo": "0.50",
+  "precio_maximo": "9999.99",
+  "carga_max_filas": 200,
+  "carga_max_mb": 10,
+  "unidades_permitidas": ["NIU", "ZZ"],
+  "afectaciones_permitidas": ["gravado", "exonerado"]
+}
+```
+
+Restricciones: `precio_minimo > 0`; `precio_maximo >= precio_minimo` si no es null; `carga_max_filas` 1–2000; `carga_max_mb` 1–20; al menos un valor en cada array.
+
+Respuesta `200`: configuración actualizada.
+
+---
+
+## Carga masiva de productos (M8) — admin
+
+Flujo de dos pasos: previsualización editable → confirmación de inserción.
+
+### `POST /api/v1/productos/carga-masiva/preview`
+
+`multipart/form-data`, campo `archivo` (`.xlsx`).
+
+Valida el archivo contra `config_catalogo` y devuelve las filas parseadas sin insertar nada.
+
+Columnas esperadas en la primera hoja fila 1 (case-insensitive):
+`codigo`, `descripcion`, `unidad`, `precio`, `afectacion`, `controla_stock`, `stock_inicial`
+
+Respuesta `200`:
+
+```json
+{
+  "filas": [
+    { "codigo": "PROD-01", "descripcion": "Producto demo", "unidad": "NIU",
+      "precio": "10.50", "afectacion": "gravado", "controla_stock": true, "stock_inicial": 100 }
+  ]
+}
+```
+
+Respuesta `422` (errores de validación, nada insertado):
+
+```json
+{
+  "errores": [
+    { "fila": 3, "columna": "unidad", "mensaje": "unidad 'KG' no está en la lista permitida" },
+    { "fila": 5, "columna": "precio", "mensaje": "precio 0.20 está por debajo del mínimo 0.50" }
+  ]
+}
+```
+
+### `POST /api/v1/productos/carga-masiva/confirmar`
+
+Recibe el arreglo de filas (posiblemente editado tras la previsualización) e inserta en transacción.
+
+Body: `{ "filas": [ { …misma estructura… } ] }`
+
+Respuesta `200`: `{ "cantidad": 15 }`
+
+Respuesta `409` si algún código ya existe en el catálogo de la empresa.
+
+---
+
+## Dependencias y eliminación de productos (M9) — admin
+
+### `GET /api/v1/productos/{id}/dependencias`
+
+Lista los comprobantes que referencian el producto vía `comprobante_lineas`.
+
+Respuesta `200`:
+
+```json
+{
+  "total_comprobantes": 3,
+  "comprobantes": [
+    { "id": "…", "tipo": "boleta", "serie": "B001", "numero": 42, "estado": "ACEPTADO" }
+  ]
+}
+```
+
+Si `total_comprobantes = 0` el producto puede eliminarse sin impacto en registros históricos.
+
+### `DELETE /api/v1/productos/{id}`
+
+Elimina el producto en transacción atómica: `stock_movimientos` → `productos_stock` → `productos`.
+
+Las `comprobante_lineas` conservan el `producto_id` por auditoría (sin FK constraint).
+
+Respuesta `204` sin body. Respuesta `404` si no existe o pertenece a otra empresa.
+
+---
+
 ## CORS
 
 Orígenes configurables con `CORS_ORIGINS` (default Compose: `http://localhost:3000`).
+
+Métodos permitidos: `GET, POST, PATCH, DELETE, OPTIONS`.

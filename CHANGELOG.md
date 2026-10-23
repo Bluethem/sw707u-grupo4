@@ -3,9 +3,49 @@
 Todos los cambios notables de FlowFacture se documentan aquí.
 
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
-y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/) de forma informal por hitos de módulo (M1–M7).
+y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/) de forma informal por hitos de módulo (M1–M9).
 
-## [Unreleased]
+## [0.9.0] — 2026-10-23 — M9 Mejoras catálogo
+
+### Added
+
+- **Ordenamiento de columnas** en la tabla de productos admin (`ProductosAdmin.tsx`): clic en cabecera ordena asc/desc; indicador visual ↑/↓ en columna activa. Columnas: Código, Descripción, Precio, Afectación, Stock, Activo.
+- **Selector de orden** en el catálogo POS (`ProductCatalog.tsx`): Nombre A→Z (default), Nombre Z→A, Precio ↑, Precio ↓, Código A→Z. El atajo `Enter` respeta el orden seleccionado.
+- **Eliminación definitiva de productos** con chequeo previo de dependencias:
+  - `GET /api/v1/productos/{id}/dependencias` — lista comprobantes que referencian el producto (admin).
+  - `DELETE /api/v1/productos/{id}` — borra producto, `productos_stock` y `stock_movimientos` en transacción (admin).
+  - `ProductoEliminarModal.tsx` — modal con carga de dependencias, advertencia amarilla si tiene comprobantes y confirmación con botón rojo.
+
+### Fixed
+
+- **CORS:** `DELETE` no estaba incluido en `Access-Control-Allow-Methods`; el preflight bloqueaba la eliminación desde el browser (`cors.go`).
+- **Modal eliminación:** estado `deleting` no se reseteaba al abrir el modal para un segundo producto, dejando el botón bloqueado en "Eliminando…" sin haber iniciado la operación (`ProductoEliminarModal.tsx`).
+
+---
+
+## [0.8.0] — 2026-10-22 — M8 Config paramétrica + Carga masiva Excel
+
+### Added
+
+- **Migración `000007_config_catalogo`:** tabla `config_catalogo` con PK `empresa_id`; campos `precio_min`, `precio_max`, `carga_max_filas`, `carga_max_mb`, `unidades_permitidas[]`, `afectaciones_permitidas[]`.
+- **Backend config paramétrica:**
+  - Dominio `ConfigCatalogo` con `DefaultConfigCatalogo()` y `ValidarConfigCatalogo()`.
+  - Adapter Postgres: `GetByEmpresaID` (retorna defaults si no hay fila), `Upsert`.
+  - Servicio: `ObtenerConfigCatalogo`, `ActualizarConfigCatalogo`.
+  - Endpoints admin: `GET /api/v1/configuracion/catalogo`, `PATCH /api/v1/configuracion/catalogo`.
+- **Frontend configuración:** página `/admin/configuracion` con formulario pre-llenado desde la BD; chips seleccionables para unidades y afectaciones; feedback "Guardado correctamente".
+- **Backend carga masiva Excel:**
+  - Dependencia `github.com/xuri/excelize/v2 v2.8.1`.
+  - `POST /api/v1/productos/carga-masiva/preview` — valida el Excel y retorna filas parseadas sin insertar.
+  - `POST /api/v1/productos/carga-masiva/confirmar` — inserta las filas confirmadas.
+  - Validaciones: columnas requeridas, tipos, `controla_stock` (SI/NO/1/0), unidad y afectación contra `config_catalogo`, precio en rango, sin duplicados en el archivo ni en BD.
+  - Estrategia all-or-nothing: si hay errores, retorna `{"errores":[{"fila":N,"columna":"…","mensaje":"…"}]}` sin insertar nada.
+- **Frontend carga masiva:** `CargaMasivaModal.tsx` con flujo de dos pasos: previsualización editable de filas (tabla con celdas editables, filas eliminables) → confirmación de inserción.
+- Archivos Excel de demo en `docs/3/`: `catalogo_pos_demo.xlsx` y `productos_testing.xlsx`.
+
+---
+
+## [Unreleased — promovido desde borrador]
 
 ### Added
 
