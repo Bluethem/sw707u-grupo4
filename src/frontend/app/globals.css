@@ -90,6 +90,9 @@ body {
 
 main {
   min-height: 100vh;
+}
+
+.auth-main {
   display: grid;
   place-items: center;
   padding: var(--spacing-32);

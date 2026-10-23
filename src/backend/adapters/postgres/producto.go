@@ -3,10 +3,12 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	gestionapp "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/app"
 	gestiondomain "github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,7 +31,47 @@ func (r *ProductoRepository) Crear(
 	}
 	defer tx.Rollback(ctx)
 
-	err = tx.QueryRow(ctx, `
+	created, err := insertProductoTx(ctx, tx, p, stockInicial)
+	if err != nil {
+		return gestiondomain.Producto{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return gestiondomain.Producto{}, fmt.Errorf("crear producto: %w", err)
+	}
+	return created, nil
+}
+
+func (r *ProductoRepository) CrearLote(ctx context.Context, items []gestionapp.ProductoAlta) error {
+	if len(items) == 0 {
+		return nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("crear lote productos: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range items {
+		if _, err := insertProductoTx(ctx, tx, item.Producto, item.StockInicial); err != nil {
+			if errors.Is(err, gestiondomain.ErrConflicto) {
+				return fmt.Errorf("%w: el codigo %q ya existe en el catalogo", gestiondomain.ErrConflicto, item.Producto.Codigo)
+			}
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("crear lote productos: %w", err)
+	}
+	return nil
+}
+
+func insertProductoTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p gestiondomain.Producto,
+	stockInicial *int64,
+) (gestiondomain.Producto, error) {
+	err := tx.QueryRow(ctx, `
 		INSERT INTO productos (
 			id, empresa_id, codigo, descripcion, unidad, precio, afectacion, controla_stock, activo
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -60,10 +102,6 @@ func (r *ProductoRepository) Crear(
 				return gestiondomain.Producto{}, mapGestionError("crear movimiento inicial", err)
 			}
 		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return gestiondomain.Producto{}, fmt.Errorf("crear producto: %w", err)
 	}
 	return p, nil
 }

@@ -4,20 +4,30 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Input } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
+import {
+  AFECTACIONES_IGV,
+  UNIDADES_SUNAT,
+  type ConfigCatalogo,
+} from "@/lib/catalogo-config";
 
-type ConfigCatalogo = {
-  empresa_id: string;
-  precio_minimo: string;
-  precio_maximo: string | null;
-  carga_max_filas: number;
-  carga_max_mb: number;
-  unidades_permitidas: string[];
-  afectaciones_permitidas: string[];
-  actualizado_en: string;
+const sectionLabel: React.CSSProperties = {
+  fontSize: "var(--text-body)",
+  color: "var(--color-warm-gray)",
+  fontWeight: "var(--font-weight-medium)",
+  marginBottom: "var(--spacing-8)",
+  display: "block",
 };
 
-const UNIDADES_SUNAT = ["NIU", "ZZ", "KGM", "LTR", "MTR", "BX"];
-const AFECTACIONES = ["gravado", "exonerado", "inafecto"];
+const chipBase: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "4px 12px",
+  borderRadius: "var(--radius-buttons)",
+  fontSize: "var(--text-body)",
+  cursor: "pointer",
+  border: "1px solid var(--color-stone-border)",
+  userSelect: "none",
+};
 
 export function ConfigCatalogoAdmin() {
   const router = useRouter();
@@ -27,7 +37,6 @@ export function ConfigCatalogoAdmin() {
   const [error, setError] = useState<string | undefined>();
   const [success, setSuccess] = useState(false);
 
-  // form state
   const [precioMinimo, setPrecioMinimo] = useState("");
   const [precioMaximo, setPrecioMaximo] = useState("");
   const [cargaMaxFilas, setCargaMaxFilas] = useState("");
@@ -63,15 +72,11 @@ export function ConfigCatalogoAdmin() {
   }, [load]);
 
   function toggleUnidad(u: string) {
-    setUnidades((prev) =>
-      prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u]
-    );
+    setUnidades((prev) => (prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u]));
   }
 
   function toggleAfectacion(a: string) {
-    setAfectaciones((prev) =>
-      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
-    );
+    setAfectaciones((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,19 +85,19 @@ export function ConfigCatalogoAdmin() {
     setError(undefined);
     setSuccess(false);
     try {
-      const body: Record<string, unknown> = {
-        precio_minimo: precioMinimo || undefined,
-        precio_maximo: precioMaximo !== "" ? precioMaximo : null,
-        carga_max_filas: cargaMaxFilas ? Number(cargaMaxFilas) : undefined,
-        carga_max_mb: cargaMaxMB ? Number(cargaMaxMB) : undefined,
-        unidades_permitidas: unidades,
-        afectaciones_permitidas: afectaciones,
-      };
       const updated = await apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo", {
         method: "PATCH",
-        body,
+        body: {
+          precio_minimo: precioMinimo || undefined,
+          precio_maximo: precioMaximo,
+          carga_max_filas: cargaMaxFilas ? Number(cargaMaxFilas) : undefined,
+          carga_max_mb: cargaMaxMB ? Number(cargaMaxMB) : undefined,
+          unidades_permitidas: unidades,
+          afectaciones_permitidas: afectaciones,
+        },
       });
       setCfg(updated);
+      setPrecioMaximo(updated.precio_maximo ?? "");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (e) {
@@ -102,31 +107,12 @@ export function ConfigCatalogoAdmin() {
     }
   }
 
-  const sectionLabel: React.CSSProperties = {
-    fontSize: "var(--text-body)",
-    color: "var(--color-warm-gray)",
-    fontWeight: "var(--font-weight-medium)",
-    marginBottom: "var(--spacing-8)",
-    display: "block",
-  };
-
-  const chipBase: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "4px 12px",
-    borderRadius: "var(--radius-buttons)",
-    fontSize: "var(--text-body)",
-    cursor: "pointer",
-    border: "1px solid var(--color-stone-border)",
-    userSelect: "none",
-  };
-
   return (
     <>
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
           gap: "var(--spacing-12)",
@@ -141,27 +127,25 @@ export function ConfigCatalogoAdmin() {
             fontWeight: "var(--font-weight-regular)",
           }}
         >
-          Configuración del catálogo
+          Configuración
         </h1>
-        {cfg ? (
+        {cfg?.actualizado_en ? (
           <span style={{ fontSize: "13px", color: "var(--color-warm-gray)" }}>
-            Actualizado: {new Date(cfg.actualizado_en).toLocaleString("es-PE")}
+            Actualizado {new Date(cfg.actualizado_en).toLocaleString("es-PE")}
           </span>
         ) : null}
       </div>
 
-      <Card style={{ padding: "var(--spacing-24)", boxShadow: "none", maxWidth: 640 }}>
+      <Card style={{ padding: "var(--spacing-16)", boxShadow: "none" }}>
         {loading ? (
           <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Cargando…</p>
         ) : (
           <form onSubmit={(e) => void handleSubmit(e)}>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-20)" }}>
-
-              {/* Precios */}
               <div>
                 <span style={sectionLabel}>Rango de precios (S/)</span>
-                <div style={{ display: "flex", gap: "var(--spacing-16)" }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", gap: "var(--spacing-16)", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 200px" }}>
                     <Input
                       label="Precio mínimo"
                       type="number"
@@ -172,7 +156,7 @@ export function ConfigCatalogoAdmin() {
                       required
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: "1 1 200px" }}>
                     <Input
                       label="Precio máximo (vacío = sin límite)"
                       type="number"
@@ -186,11 +170,10 @@ export function ConfigCatalogoAdmin() {
                 </div>
               </div>
 
-              {/* Carga masiva */}
               <div>
                 <span style={sectionLabel}>Límites de carga masiva</span>
-                <div style={{ display: "flex", gap: "var(--spacing-16)" }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", gap: "var(--spacing-16)", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 200px" }}>
                     <Input
                       label="Máximo de filas"
                       type="number"
@@ -201,7 +184,7 @@ export function ConfigCatalogoAdmin() {
                       required
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: "1 1 200px" }}>
                     <Input
                       label="Tamaño máximo (MB)"
                       type="number"
@@ -215,77 +198,27 @@ export function ConfigCatalogoAdmin() {
                 </div>
               </div>
 
-              {/* Unidades */}
               <div>
                 <span style={sectionLabel}>Unidades de medida permitidas</span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-8)" }}>
-                  {UNIDADES_SUNAT.map((u) => {
-                    const active = unidades.includes(u);
-                    return (
-                      <label
-                        key={u}
-                        style={{
-                          ...chipBase,
-                          background: active ? "var(--color-sky-wash)" : "var(--color-pure-white)",
-                          color: active ? "var(--color-ink-black)" : "var(--color-warm-gray)",
-                          borderColor: active ? "var(--color-ink-black)" : "var(--color-stone-border)",
-                          fontWeight: active ? "var(--font-weight-medium)" : "var(--font-weight-regular)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          style={{ display: "none" }}
-                          checked={active}
-                          onChange={() => toggleUnidad(u)}
-                        />
-                        {u}
-                      </label>
-                    );
-                  })}
-                </div>
-                {unidades.length === 0 ? (
-                  <span style={{ fontSize: "13px", color: "var(--color-error-text)", marginTop: "4px", display: "block" }}>
-                    Selecciona al menos una unidad
-                  </span>
-                ) : null}
+                <ChipRow
+                  options={UNIDADES_SUNAT}
+                  selected={unidades}
+                  onToggle={toggleUnidad}
+                  emptyLabel="Selecciona al menos una unidad"
+                />
               </div>
 
-              {/* Afectaciones */}
               <div>
                 <span style={sectionLabel}>Afectaciones IGV permitidas</span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-8)" }}>
-                  {AFECTACIONES.map((a) => {
-                    const active = afectaciones.includes(a);
-                    return (
-                      <label
-                        key={a}
-                        style={{
-                          ...chipBase,
-                          background: active ? "var(--color-sky-wash)" : "var(--color-pure-white)",
-                          color: active ? "var(--color-ink-black)" : "var(--color-warm-gray)",
-                          borderColor: active ? "var(--color-ink-black)" : "var(--color-stone-border)",
-                          fontWeight: active ? "var(--font-weight-medium)" : "var(--font-weight-regular)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          style={{ display: "none" }}
-                          checked={active}
-                          onChange={() => toggleAfectacion(a)}
-                        />
-                        {a.charAt(0).toUpperCase() + a.slice(1)}
-                      </label>
-                    );
-                  })}
-                </div>
-                {afectaciones.length === 0 ? (
-                  <span style={{ fontSize: "13px", color: "var(--color-error-text)", marginTop: "4px", display: "block" }}>
-                    Selecciona al menos una afectación
-                  </span>
-                ) : null}
+                <ChipRow
+                  options={AFECTACIONES_IGV}
+                  selected={afectaciones}
+                  onToggle={toggleAfectacion}
+                  labelize={(a) => a.charAt(0).toUpperCase() + a.slice(1)}
+                  emptyLabel="Selecciona al menos una afectación"
+                />
               </div>
 
-              {/* Actions */}
               <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-12)" }}>
                 <Button
                   type="submit"
@@ -294,7 +227,7 @@ export function ConfigCatalogoAdmin() {
                   {saving ? "Guardando…" : "Guardar cambios"}
                 </Button>
                 {success ? (
-                  <span style={{ fontSize: "var(--text-body)", color: "var(--color-success-text, green)" }}>
+                  <span style={{ fontSize: "var(--text-body)", color: "var(--color-cyan-edge)" }}>
                     Guardado correctamente
                   </span>
                 ) : null}
@@ -304,11 +237,59 @@ export function ConfigCatalogoAdmin() {
                   </span>
                 ) : null}
               </div>
-
             </div>
           </form>
         )}
       </Card>
     </>
+  );
+}
+
+function ChipRow({
+  options,
+  selected,
+  onToggle,
+  labelize,
+  emptyLabel,
+}: {
+  options: readonly string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  labelize?: (value: string) => string;
+  emptyLabel: string;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-8)" }}>
+        {options.map((opt) => {
+          const active = selected.includes(opt);
+          return (
+            <label
+              key={opt}
+              style={{
+                ...chipBase,
+                background: active ? "var(--color-sky-wash)" : "var(--color-pure-white)",
+                color: active ? "var(--color-ink-black)" : "var(--color-warm-gray)",
+                borderColor: active ? "var(--color-ink-black)" : "var(--color-stone-border)",
+                fontWeight: active ? "var(--font-weight-medium)" : "var(--font-weight-regular)",
+              }}
+            >
+              <input
+                type="checkbox"
+                style={{ display: "none" }}
+                checked={active}
+                onChange={() => onToggle(opt)}
+              />
+              {labelize ? labelize(opt) : opt}
+            </label>
+          );
+        })}
+      </div>
+      {selected.length === 0 ? (
+        <span style={{ fontSize: "13px", color: "var(--color-error-text)", marginTop: 4, display: "block" }}>
+          {emptyLabel}
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -12,10 +12,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main
           style={{
             display: "block",
+            width: "100%",
             minHeight: "calc(100vh - 57px)",
             padding: "var(--spacing-16)",
             maxWidth: "var(--page-max-width)",
             margin: "0 auto",
+            textAlign: "left",
           }}
         >
           {children}

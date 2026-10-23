@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
+import type { ConfigCatalogo } from "@/lib/catalogo-config";
 import { ModalShell } from "./ModalShell";
 import { AFECTACIONES, type Afectacion, type ProductoDetalle } from "./producto-types";
 import { selectFieldStyle } from "./table-styles";
@@ -40,9 +41,13 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
+  const [config, setConfig] = useState<ConfigCatalogo | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    void apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo")
+      .then(setConfig)
+      .catch(() => setConfig(null));
     setError(undefined);
     if (mode === "create") {
       setCodigo("");
@@ -142,9 +147,27 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
             onChange={(ev) => setDescripcion(ev.target.value)}
             required
           />
-          <Input label="Unidad" value={unidad} onChange={(ev) => setUnidad(ev.target.value)} required />
+          <label style={labelStyle}>
+            <span style={labelTextStyle}>Unidad</span>
+            <select
+              value={unidad}
+              onChange={(ev) => setUnidad(ev.target.value)}
+              style={selectFieldStyle}
+              required
+            >
+              {unidadOptions(config, unidad).map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </label>
           <Input
-            label="Precio"
+            label={
+              config
+                ? `Precio (mín. S/ ${config.precio_minimo}${config.precio_maximo ? ` · máx. S/ ${config.precio_maximo}` : ""})`
+                : "Precio"
+            }
             value={precio}
             onChange={(ev) => setPrecio(ev.target.value)}
             inputMode="decimal"
@@ -157,7 +180,12 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
               onChange={(ev) => setAfectacion(ev.target.value as Afectacion)}
               style={selectFieldStyle}
             >
-              {AFECTACIONES.map((a) => (
+              {(config?.afectaciones_permitidas?.length
+                ? config.afectaciones_permitidas.filter((a): a is Afectacion =>
+                    AFECTACIONES.includes(a as Afectacion),
+                  )
+                : AFECTACIONES
+              ).map((a) => (
                 <option key={a} value={a}>
                   {a}
                 </option>
@@ -209,4 +237,10 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
       )}
     </ModalShell>
   );
+}
+
+function unidadOptions(config: ConfigCatalogo | null, actual: string): string[] {
+  const base = config?.unidades_permitidas?.length ? [...config.unidades_permitidas] : ["NIU"];
+  if (actual && !base.includes(actual)) base.unshift(actual);
+  return base;
 }

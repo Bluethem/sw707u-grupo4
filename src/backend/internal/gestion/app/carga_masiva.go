@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Bluethem/sw707u-grupo4/src/backend/internal/gestion/domain"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
 )
@@ -188,7 +189,7 @@ func (s *Service) PreviewCargaMasiva(ctx context.Context, empresaID string, data
 			} else {
 				fila.Precio = precio.StringFixed(2)
 				if rangoErr := cfg.PrecioEnRango(precio); rangoErr != nil {
-					addErr("precio", strings.TrimPrefix(rangoErr.Error(), "invalido: "))
+					addErr("precio", mensajeSinPrefijo(rangoErr))
 				}
 			}
 		}
@@ -336,7 +337,7 @@ func (s *Service) ConfirmarCargaMasiva(ctx context.Context, empresaID string, fi
 			} else {
 				fp.Precio = precio
 				if rangoErr := cfg.PrecioEnRango(precio); rangoErr != nil {
-					addErr("precio", strings.TrimPrefix(rangoErr.Error(), "invalido: "))
+					addErr("precio", mensajeSinPrefijo(rangoErr))
 				}
 			}
 		}
@@ -363,30 +364,52 @@ func (s *Service) ConfirmarCargaMasiva(ctx context.Context, empresaID string, fi
 		return ResultadoCargaMasiva{Errores: errores}, nil
 	}
 
-	// ── Insertar todos ─────────────────────────────────────────────────
+	// Inserción atómica: si un código choca, no queda ningún producto del lote.
+	altas := make([]ProductoAlta, 0, len(parsed))
 	for _, fp := range parsed {
-		_, err := s.CrearProducto(ctx, empresaID, CrearProductoInput{
-			Codigo:        fp.Codigo,
-			Descripcion:   fp.Descripcion,
-			Unidad:        fp.Unidad,
-			Precio:        fp.Precio,
-			Afectacion:    fp.Afectacion,
-			ControlaStock: fp.ControlaStock,
-			StockInicial:  fp.StockInicial,
+		altas = append(altas, ProductoAlta{
+			Producto: domain.Producto{
+				ID:            uuid.NewString(),
+				EmpresaID:     empresaID,
+				Codigo:        fp.Codigo,
+				Descripcion:   fp.Descripcion,
+				Unidad:        fp.Unidad,
+				Precio:        fp.Precio,
+				Afectacion:    fp.Afectacion,
+				ControlaStock: fp.ControlaStock,
+				Activo:        true,
+			},
+			StockInicial: fp.StockInicial,
 		})
-		if err != nil {
-			if errors.Is(err, domain.ErrConflicto) {
-				return ResultadoCargaMasiva{
-					Errores: []ErrorCargaMasiva{
-						{Fila: 0, Columna: "codigo", Mensaje: fmt.Sprintf("el codigo %q ya existe en el catalogo", fp.Codigo)},
-					},
-				}, nil
-			}
-			return ResultadoCargaMasiva{}, err
+	}
+	if err := s.productos.CrearLote(ctx, altas); err != nil {
+		if errors.Is(err, domain.ErrConflicto) {
+			return ResultadoCargaMasiva{
+				Errores: []ErrorCargaMasiva{
+					{Fila: 0, Columna: "codigo", Mensaje: mensajeSinPrefijo(err)},
+				},
+			}, nil
 		}
+		return ResultadoCargaMasiva{}, err
 	}
 
 	return ResultadoCargaMasiva{Cantidad: len(parsed)}, nil
+}
+
+func mensajeSinPrefijo(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	for _, prefix := range []string{domain.ErrInvalido.Error() + ": ", domain.ErrConflicto.Error() + ": "} {
+		if trimmed := strings.TrimPrefix(msg, prefix); trimmed != msg {
+			return trimmed
+		}
+	}
+	if i := strings.LastIndex(msg, ": "); i >= 0 && i+2 < len(msg) {
+		return msg[i+2:]
+	}
+	return msg
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

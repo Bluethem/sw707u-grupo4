@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { Button, Card, Input } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import { isAuthenticated, setToken } from "@/lib/auth";
+import { homePathForRol, isAuthenticated, setToken } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,9 +14,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/caja");
-    }
+    if (!isAuthenticated()) return;
+    apiFetch<{ rol: string }>("/api/v1/auth/me")
+      .then((me) => router.replace(homePathForRol(me.rol)))
+      .catch(() => router.replace("/caja"));
   }, [router]);
 
   async function onSubmit(e: FormEvent) {
@@ -30,7 +31,8 @@ export default function LoginPage() {
         token: null,
       });
       setToken(data.token);
-      router.replace("/caja");
+      const me = await apiFetch<{ rol: string }>("/api/v1/auth/me");
+      router.replace(homePathForRol(me.rol));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setFormError("Credenciales inválidas");
@@ -45,7 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
+    <main className="auth-main">
       <Card style={{ width: "100%", maxWidth: "400px" }}>
         <h1
           style={{

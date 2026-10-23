@@ -129,6 +129,7 @@ export default function ComprobantesPage() {
       <main
         style={{
           display: "block",
+          width: "100%",
           minHeight: "calc(100vh - 57px)",
           padding: "var(--spacing-16)",
           maxWidth: "var(--page-max-width)",

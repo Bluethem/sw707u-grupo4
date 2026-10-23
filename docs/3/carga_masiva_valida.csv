@@ -1,0 +1,9 @@
+codigo,descripcion,unidad,precio,afectacion,controla_stock,stock_inicial
+CM-OK-01,Café espresso,NIU,7.50,gravado,SI,80
+CM-OK-02,Consultoría por hora,ZZ,120.00,gravado,NO,
+CM-OK-03,Harina de trigo a granel,KGM,4.20,gravado,SI,25
+CM-OK-04,Leche evaporada 400ml,LTR,5.80,exonerado,SI,40
+CM-OK-05,Cinta adhesiva (metro),MTR,1.90,gravado,SI,200
+CM-OK-06,Caja de galletas surtidas,BX,18.00,gravado,SI,12
+CM-OK-07,Cuaderno escolar inafecto,NIU,6.50,inafecto,SI,0
+CM-OK-08,Servicio de delivery,ZZ,8.00,exonerado,NO,

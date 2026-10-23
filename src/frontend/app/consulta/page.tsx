@@ -168,7 +168,7 @@ function ConsultaForm() {
 
 export default function ConsultaPage() {
   return (
-    <main>
+    <main className="auth-main">
       <Suspense fallback={null}>
         <ConsultaForm />
       </Suspense>

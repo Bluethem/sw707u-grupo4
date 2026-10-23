@@ -16,3 +16,7 @@ export function clearToken(): void {
 export function isAuthenticated(): boolean {
   return getToken() !== null;
 }
+
+export function homePathForRol(rol?: string): string {
+  return rol === "administrador" ? "/admin" : "/caja";
+}

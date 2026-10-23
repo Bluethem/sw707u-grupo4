@@ -95,12 +95,26 @@ func (c ConfigCatalogo) AfectacionPermitida(a string) bool {
 // PrecioEnRango verifica si un precio cumple los límites configurados.
 func (c ConfigCatalogo) PrecioEnRango(precio decimal.Decimal) error {
 	if precio.LessThan(c.PrecioMinimo) {
-		return fmt.Errorf("%w: precio %.2f es menor al mínimo permitido %.2f",
-			ErrInvalido, precio.InexactFloat64(), c.PrecioMinimo.InexactFloat64())
+		return fmt.Errorf("%w: precio %s es menor al mínimo permitido %s",
+			ErrInvalido, precio.StringFixed(2), c.PrecioMinimo.StringFixed(2))
 	}
 	if c.PrecioMaximo != nil && precio.GreaterThan(*c.PrecioMaximo) {
-		return fmt.Errorf("%w: precio %.2f supera el máximo permitido %.2f",
-			ErrInvalido, precio.InexactFloat64(), c.PrecioMaximo.InexactFloat64())
+		return fmt.Errorf("%w: precio %s supera el máximo permitido %s",
+			ErrInvalido, precio.StringFixed(2), c.PrecioMaximo.StringFixed(2))
+	}
+	return nil
+}
+
+// ValidarContraCatalogo aplica las reglas paramétricas de la empresa al producto.
+func (c ConfigCatalogo) ValidarContraCatalogo(p Producto) error {
+	if p.Unidad != "" && !c.UnidadPermitida(p.Unidad) {
+		return fmt.Errorf("%w: unidad %q no permitida", ErrInvalido, p.Unidad)
+	}
+	if p.Afectacion != "" && !c.AfectacionPermitida(p.Afectacion) {
+		return fmt.Errorf("%w: afectacion %q no permitida", ErrInvalido, p.Afectacion)
+	}
+	if !p.Precio.IsZero() {
+		return c.PrecioEnRango(p.Precio)
 	}
 	return nil
 }

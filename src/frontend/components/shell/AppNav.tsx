@@ -70,7 +70,7 @@ export function AppNav() {
       }}
     >
       <Link
-        href="/caja"
+        href={profile?.rol === "administrador" ? "/admin" : "/caja"}
         style={{
           fontFamily: "var(--font-family-display)",
           fontSize: "var(--text-subheading)",

@@ -54,8 +54,14 @@ type DependenciaComprobante struct {
 	Estado string
 }
 
+type ProductoAlta struct {
+	Producto      domain.Producto
+	StockInicial  *int64
+}
+
 type ProductoRepository interface {
 	Crear(context.Context, domain.Producto, *int64) (domain.Producto, error)
+	CrearLote(context.Context, []ProductoAlta) error
 	Obtener(context.Context, string, string) (ProductoDetalle, error)
 	Listar(context.Context, string, ListarProductosFilter) ([]ProductoDetalle, int, error)
 	Actualizar(context.Context, domain.Producto) (domain.Producto, error)
@@ -517,6 +523,9 @@ func (s *Service) CrearProducto(ctx context.Context, empresaID string, input Cre
 	if err := domain.ValidarProducto(producto, input.StockInicial); err != nil {
 		return ProductoDetalle{}, err
 	}
+	if err := s.validarProductoContraConfig(ctx, empresaID, producto); err != nil {
+		return ProductoDetalle{}, err
+	}
 	if _, err := s.productos.Crear(ctx, producto, input.StockInicial); err != nil {
 		return ProductoDetalle{}, err
 	}
@@ -590,6 +599,9 @@ func (s *Service) ActualizarProducto(
 	if err := domain.ValidarProducto(producto, nil); err != nil {
 		return ProductoDetalle{}, err
 	}
+	if err := s.validarProductoContraConfig(ctx, empresaID, producto); err != nil {
+		return ProductoDetalle{}, err
+	}
 	if _, err := s.productos.Actualizar(ctx, producto); err != nil {
 		return ProductoDetalle{}, err
 	}
@@ -611,6 +623,14 @@ func (s *Service) EliminarProducto(ctx context.Context, empresaID, productoID st
 		return err
 	}
 	return s.productos.Eliminar(ctx, empresaID, productoID)
+}
+
+func (s *Service) validarProductoContraConfig(ctx context.Context, empresaID string, producto domain.Producto) error {
+	cfg, err := s.configCatalogo.GetByEmpresaID(ctx, empresaID)
+	if err != nil {
+		return err
+	}
+	return cfg.ValidarContraCatalogo(producto)
 }
 
 type AjustarStockInput struct {
