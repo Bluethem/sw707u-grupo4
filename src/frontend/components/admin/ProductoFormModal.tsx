@@ -45,10 +45,26 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
 
   useEffect(() => {
     if (!open) return;
-    void apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo")
-      .then(setConfig)
-      .catch(() => setConfig(null));
     setError(undefined);
+    let cancelled = false;
+
+    void apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo")
+      .then((data) => {
+        if (cancelled) return;
+        setConfig(data);
+        if (mode === "create") {
+          const firstUnidad = data.unidades_permitidas?.[0] ?? "NIU";
+          const firstAf = (data.afectaciones_permitidas ?? []).find((a): a is Afectacion =>
+            AFECTACIONES.includes(a as Afectacion),
+          );
+          setUnidad(firstUnidad);
+          setAfectacion(firstAf ?? "gravado");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setConfig(null);
+      });
+
     if (mode === "create") {
       setCodigo("");
       setDescripcion("");
@@ -58,12 +74,19 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
       setControlaStock(false);
       setStockInicial("");
       setActivo(true);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    if (!productoId) return;
+    if (!productoId) {
+      return () => {
+        cancelled = true;
+      };
+    }
     setLoadingDetail(true);
     void apiFetch<ProductoDetalle>(`/api/v1/productos/${productoId}`)
       .then((p) => {
+        if (cancelled) return;
         setCodigo(p.codigo);
         setDescripcion(p.descripcion);
         setUnidad(p.unidad);
@@ -78,9 +101,15 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
         setStockInicial("");
       })
       .catch((err) => {
+        if (cancelled) return;
         setError(err instanceof ApiError ? err.message : "No se pudo cargar el producto");
       })
-      .finally(() => setLoadingDetail(false));
+      .finally(() => {
+        if (!cancelled) setLoadingDetail(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, mode, productoId]);
 
   async function onSubmit(e: FormEvent) {
@@ -180,12 +209,7 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
               onChange={(ev) => setAfectacion(ev.target.value as Afectacion)}
               style={selectFieldStyle}
             >
-              {(config?.afectaciones_permitidas?.length
-                ? config.afectaciones_permitidas.filter((a): a is Afectacion =>
-                    AFECTACIONES.includes(a as Afectacion),
-                  )
-                : AFECTACIONES
-              ).map((a) => (
+              {afectacionOptions(config, afectacion).map((a) => (
                 <option key={a} value={a}>
                   {a}
                 </option>
@@ -241,6 +265,15 @@ export function ProductoFormModal({ open, mode, productoId, onClose, onSaved }: 
 
 function unidadOptions(config: ConfigCatalogo | null, actual: string): string[] {
   const base = config?.unidades_permitidas?.length ? [...config.unidades_permitidas] : ["NIU"];
+  if (actual && !base.includes(actual)) base.unshift(actual);
+  return base;
+}
+
+function afectacionOptions(config: ConfigCatalogo | null, actual: Afectacion): Afectacion[] {
+  const fromConfig = (config?.afectaciones_permitidas ?? []).filter((a): a is Afectacion =>
+    AFECTACIONES.includes(a as Afectacion),
+  );
+  const base = fromConfig.length > 0 ? [...fromConfig] : [...AFECTACIONES];
   if (actual && !base.includes(actual)) base.unshift(actual);
   return base;
 }

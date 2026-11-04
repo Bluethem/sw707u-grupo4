@@ -87,6 +87,12 @@ func run() error {
 	gestion := gestionapp.NewService(empresas, usuarios, series, clientes, productos, productos, configCatalogo)
 	sessions := redisadapter.NewSessionStore(redisClient, cfg.SessionTTL)
 
+	firmaPort, firmaMode, err := firma.NewFromPaths(cfg.SunatCertPath, cfg.SunatCertPassword)
+	if err != nil {
+		return fmt.Errorf("firma: %w", err)
+	}
+	log.Printf("firma=%s", firmaMode)
+
 	uow := postgres.NewUnitOfWork(pool)
 	comprobantes := postgres.NewComprobante()
 	emisor := &factapp.Emisor{
@@ -96,7 +102,7 @@ func run() error {
 		Series:    postgres.NewSeries(),
 		Comps:     comprobantes,
 		Outbox:    postgres.NewOutbox(),
-		Firma:     firma.Fake{},
+		Firma:     firmaPort,
 		PDF:       pdf.New(cfg.FrontendPublicURL),
 		Storage:   storage.NewFS(cfg.BlobDir),
 		Empresas:  emisorEmpresaReader{repo: empresas},

@@ -55,8 +55,18 @@ services:
       MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
       BLOB_DIR: /data/blobs
       FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:3000}
+      SUNAT_RUC: ${SUNAT_RUC:-}
+      SUNAT_SOL_USER: ${SUNAT_SOL_USER:-}
+      SUNAT_SOL_PASSWORD: ${SUNAT_SOL_PASSWORD:-}
+      SUNAT_CERT_PATH: ${SUNAT_CERT_PATH:-}
+      SUNAT_CERT_PASSWORD: ${SUNAT_CERT_PASSWORD:-}
+      SUNAT_ENV: ${SUNAT_ENV:-beta}
+      SUNAT_WS_URL: ${SUNAT_WS_URL:-}
+      SUNAT_ALLOW_PRODUCTION: ${SUNAT_ALLOW_PRODUCTION:-false}
+      SUNAT_MIN_INTERVAL: ${SUNAT_MIN_INTERVAL:-30s}
     volumes:
       - blobs:/data/blobs
+      - ${SUNAT_CERT_HOST_DIR:-./data/certs}:/certs:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -79,8 +89,18 @@ services:
       SUNAT_FAKE_MODE: ${SUNAT_FAKE_MODE:-accept}
       MIGRATE_ON_START: ${MIGRATE_ON_START:-false}
       BLOB_DIR: /data/blobs
+      SUNAT_RUC: ${SUNAT_RUC:-}
+      SUNAT_SOL_USER: ${SUNAT_SOL_USER:-}
+      SUNAT_SOL_PASSWORD: ${SUNAT_SOL_PASSWORD:-}
+      SUNAT_CERT_PATH: ${SUNAT_CERT_PATH:-}
+      SUNAT_CERT_PASSWORD: ${SUNAT_CERT_PASSWORD:-}
+      SUNAT_ENV: ${SUNAT_ENV:-beta}
+      SUNAT_WS_URL: ${SUNAT_WS_URL:-}
+      SUNAT_ALLOW_PRODUCTION: ${SUNAT_ALLOW_PRODUCTION:-false}
+      SUNAT_MIN_INTERVAL: ${SUNAT_MIN_INTERVAL:-30s}
     volumes:
       - blobs:/data/blobs
+      - ${SUNAT_CERT_HOST_DIR:-./data/certs}:/certs:ro
     depends_on:
       postgres:
         condition: service_healthy

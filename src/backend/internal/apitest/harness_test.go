@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +64,10 @@ func newHarness(t *testing.T) *harness {
 	redisURL := os.Getenv("REDIS_URL")
 	if databaseURL == "" || redisURL == "" {
 		t.Skip("tests API requieren DATABASE_URL y REDIS_URL")
+	}
+	// Evita TRUNCATE accidental de la DB demo de Compose (`flowfacture`).
+	if dbName := postgresDBName(databaseURL); dbName == "flowfacture" {
+		t.Fatalf("DATABASE_URL apunta a %q (demo Compose). Usa flowfacture_test u otra DB descartable", dbName)
 	}
 
 	ctx := context.Background()
@@ -289,4 +295,12 @@ func requireStatus(t *testing.T, res *http.Response, want int) {
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 	t.Fatalf("status = %d, esperado %d; body=%s", res.StatusCode, want, body)
+}
+
+func postgresDBName(databaseURL string) string {
+	u, err := url.Parse(databaseURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(u.Path, "/")
 }

@@ -46,12 +46,17 @@ func run() error {
 		}
 	}
 
+	sel, err := sunat.NewFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("sunat: %w", err)
+	}
+
 	procesador := &factapp.ProcesadorEnvio{
 		Outbox:       postgres.NewOutboxConsumer(pool),
 		Comprobantes: postgres.NewComprobanteQuery(pool),
 		Resumenes:    postgres.NewResumenRepository(pool),
 		Storage:      storage.NewFS(cfg.BlobDir),
-		Sunat:        sunat.NewFake(sunat.Mode(cfg.SunatFakeMode)),
+		Sunat:        sel.Gateway,
 		BatchSize:    cfg.WorkerBatchSize,
 		MaxIntentos:  cfg.WorkerMaxIntentos,
 		BackoffBase:  cfg.WorkerBackoffBase,
@@ -60,8 +65,8 @@ func run() error {
 	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("worker started (poll=%s batch=%d max_intentos=%d sunat_fake=%s)",
-		cfg.WorkerPollInterval, cfg.WorkerBatchSize, cfg.WorkerMaxIntentos, cfg.SunatFakeMode)
+	log.Printf("worker started (poll=%s batch=%d max_intentos=%d %s)",
+		cfg.WorkerPollInterval, cfg.WorkerBatchSize, cfg.WorkerMaxIntentos, sunat.MustExplain(sel))
 
 	for {
 		if runCtx.Err() != nil {

@@ -13,6 +13,10 @@ vendor/
 src/backend/seed
 
 data/blobs/
+data/certs/*
+!data/certs/.gitkeep
+*.pfx
+*.p12
 
 src/frontend/.pnpm-store/
 

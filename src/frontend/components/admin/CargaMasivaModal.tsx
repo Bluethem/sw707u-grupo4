@@ -141,27 +141,43 @@ export function CargaMasivaModal({ open, onClose, onSaved }: Props) {
 
   // ── Selección de archivo ──────────────────────────────────────────
 
+  function validarArchivoContraConfig(f: File, cfg: ConfigCatalogo | null): string | undefined {
+    const ext = f.name.split(".").pop()?.toLowerCase();
+    if (ext !== "xlsx" && ext !== "xls") {
+      return "El archivo debe tener extensión .xlsx o .xls";
+    }
+    const maxMB = cfg?.carga_max_mb ?? 20;
+    if (f.size > maxMB * 1024 * 1024) {
+      return `El archivo supera el límite de ${maxMB} MB`;
+    }
+    return undefined;
+  }
+
   function seleccionarArchivo(f: File | null) {
     setErroresFila([]);
     setErrorFatal(undefined);
     setCantidadCargada(null);
     setFilasEditables([]);
     if (!f) { setArchivo(null); return; }
-    const ext = f.name.split(".").pop()?.toLowerCase();
-    if (ext !== "xlsx" && ext !== "xls") {
-      setErrorFatal("El archivo debe tener extensión .xlsx o .xls");
-      setArchivo(null);
-      return;
-    }
-    const maxMB = config?.carga_max_mb ?? 20;
-    if (f.size > maxMB * 1024 * 1024) {
-      setErrorFatal(`El archivo supera el límite de ${maxMB} MB`);
+    const err = validarArchivoContraConfig(f, config);
+    if (err) {
+      setErrorFatal(err);
       setArchivo(null);
       return;
     }
     setArchivo(f);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  // Si el archivo se eligió antes de terminar de cargar config, revalidar con el límite real.
+  useEffect(() => {
+    if (!archivo || !config || estado !== "listo") return;
+    const err = validarArchivoContraConfig(archivo, config);
+    if (err) {
+      setErrorFatal(err);
+      setArchivo(null);
+    }
+  }, [archivo, config, estado]);
 
   function handleDragOver(e: React.DragEvent) { e.preventDefault(); setDrag(true); }
   function handleDragLeave() { setDrag(false); }

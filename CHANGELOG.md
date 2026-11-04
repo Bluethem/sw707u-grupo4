@@ -5,6 +5,23 @@ Todos los cambios notables de FlowFacture se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/) de forma informal por hitos de módulo (M1–M9).
 
+## [Unreleased]
+
+### Added
+
+- **SUNAT beta (cliente real con fallback Fake):**
+  - Si el `.env` tiene el set mínimo (`SUNAT_RUC`, `SUNAT_SOL_USER`, `SUNAT_SOL_PASSWORD`, `SUNAT_CERT_PATH`, `SUNAT_CERT_PASSWORD`), el worker usa SOAP `sendBill` contra beta (`e-beta.sunat.gob.pe/.../billService`) y la API firma XML con PKCS#12.
+  - Si faltan credenciales → `sunat.Fake` + `firma.Fake` (comportamiento anterior; `SUNAT_FAKE_MODE`).
+  - Límite local `SUNAT_MIN_INTERVAL` (default 30s) entre llamadas WS para no abusar de beta (riesgo de bloqueo de IP según aviso SUNAT).
+  - **Producción** solo con condiciones explícitas:
+    1. Credenciales y certificado del emisor real.
+    2. `SUNAT_ENV=production`
+    3. `SUNAT_ALLOW_PRODUCTION=true`
+    4. Cada aceptación es un CPE tributario real — no usar producción para pruebas.
+  - Resumen diario / baja: el adaptador real aún no genera UBL de resumen/baja (error claro); MVP = envío de XML firmado vía `sendBill`.
+
+---
+
 ## [0.9.0] — 2026-10-23 — M9 Mejoras catálogo
 
 ### Added

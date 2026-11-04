@@ -10,24 +10,93 @@ import {
   type ConfigCatalogo,
 } from "@/lib/catalogo-config";
 
-const sectionLabel: React.CSSProperties = {
-  fontSize: "var(--text-body)",
-  color: "var(--color-warm-gray)",
-  fontWeight: "var(--font-weight-medium)",
-  marginBottom: "var(--spacing-8)",
-  display: "block",
+const UNIT_HINTS: Record<string, string> = {
+  NIU: "Unidad",
+  ZZ: "Servicio",
+  KGM: "Kilogramo",
+  LTR: "Litro",
+  MTR: "Metro",
+  BX: "Caja",
 };
 
-const chipBase: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "4px 12px",
-  borderRadius: "var(--radius-buttons)",
+const sectionTitle: React.CSSProperties = {
+  margin: "0 0 var(--spacing-12)",
   fontSize: "var(--text-body)",
-  cursor: "pointer",
-  border: "1px solid var(--color-stone-border)",
-  userSelect: "none",
+  fontWeight: "var(--font-weight-medium)",
+  color: "var(--color-ink-black)",
 };
+
+const sectionGap: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-16)",
+};
+
+const fieldRow: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "var(--spacing-16)",
+};
+
+const fieldCol: React.CSSProperties = {
+  flex: "1 1 180px",
+  minWidth: 0,
+  maxWidth: 280,
+};
+
+function applyConfigToForm(
+  data: ConfigCatalogo,
+  setters: {
+    setPrecioMinimo: (v: string) => void;
+    setPrecioMaximo: (v: string) => void;
+    setCargaMaxFilas: (v: string) => void;
+    setCargaMaxMB: (v: string) => void;
+    setUnidades: (v: string[]) => void;
+    setAfectaciones: (v: string[]) => void;
+  },
+) {
+  setters.setPrecioMinimo(data.precio_minimo);
+  setters.setPrecioMaximo(data.precio_maximo ?? "");
+  setters.setCargaMaxFilas(String(data.carga_max_filas));
+  setters.setCargaMaxMB(String(data.carga_max_mb));
+  setters.setUnidades([...(data.unidades_permitidas ?? [])]);
+  setters.setAfectaciones([...(data.afectaciones_permitidas ?? [])]);
+}
+
+function validateForm(input: {
+  precioMinimo: string;
+  precioMaximo: string;
+  cargaMaxFilas: string;
+  cargaMaxMB: string;
+  unidades: string[];
+  afectaciones: string[];
+}): string | undefined {
+  const min = Number(input.precioMinimo);
+  if (!Number.isFinite(min) || min <= 0) {
+    return "El precio mínimo debe ser mayor que 0";
+  }
+  if (input.precioMaximo.trim() !== "") {
+    const max = Number(input.precioMaximo);
+    if (!Number.isFinite(max) || max < min) {
+      return "El precio máximo debe ser mayor o igual al mínimo";
+    }
+  }
+  const filas = Number(input.cargaMaxFilas);
+  if (!Number.isInteger(filas) || filas < 1 || filas > 2000) {
+    return "Máximo de filas debe estar entre 1 y 2000";
+  }
+  const mb = Number(input.cargaMaxMB);
+  if (!Number.isInteger(mb) || mb < 1 || mb > 20) {
+    return "Tamaño máximo debe estar entre 1 y 20 MB";
+  }
+  if (input.unidades.length === 0) {
+    return "Selecciona al menos una unidad";
+  }
+  if (input.afectaciones.length === 0) {
+    return "Selecciona al menos una afectación";
+  }
+  return undefined;
+}
 
 export function ConfigCatalogoAdmin() {
   const router = useRouter();
@@ -44,18 +113,22 @@ export function ConfigCatalogoAdmin() {
   const [unidades, setUnidades] = useState<string[]>([]);
   const [afectaciones, setAfectaciones] = useState<string[]>([]);
 
+  const formSetters = {
+    setPrecioMinimo,
+    setPrecioMaximo,
+    setCargaMaxFilas,
+    setCargaMaxMB,
+    setUnidades,
+    setAfectaciones,
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
       const data = await apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo");
       setCfg(data);
-      setPrecioMinimo(data.precio_minimo);
-      setPrecioMaximo(data.precio_maximo ?? "");
-      setCargaMaxFilas(String(data.carga_max_filas));
-      setCargaMaxMB(String(data.carga_max_mb));
-      setUnidades(data.unidades_permitidas ?? []);
-      setAfectaciones(data.afectaciones_permitidas ?? []);
+      applyConfigToForm(data, formSetters);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         router.replace("/login");
@@ -65,6 +138,7 @@ export function ConfigCatalogoAdmin() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setters are stable setState
   }, [router]);
 
   useEffect(() => {
@@ -81,6 +155,20 @@ export function ConfigCatalogoAdmin() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const localErr = validateForm({
+      precioMinimo,
+      precioMaximo,
+      cargaMaxFilas,
+      cargaMaxMB,
+      unidades,
+      afectaciones,
+    });
+    if (localErr) {
+      setError(localErr);
+      setSuccess(false);
+      return;
+    }
+
     setSaving(true);
     setError(undefined);
     setSuccess(false);
@@ -88,16 +176,16 @@ export function ConfigCatalogoAdmin() {
       const updated = await apiFetch<ConfigCatalogo>("/api/v1/configuracion/catalogo", {
         method: "PATCH",
         body: {
-          precio_minimo: precioMinimo || undefined,
-          precio_maximo: precioMaximo,
-          carga_max_filas: cargaMaxFilas ? Number(cargaMaxFilas) : undefined,
-          carga_max_mb: cargaMaxMB ? Number(cargaMaxMB) : undefined,
+          precio_minimo: precioMinimo,
+          precio_maximo: precioMaximo.trim(),
+          carga_max_filas: Number(cargaMaxFilas),
+          carga_max_mb: Number(cargaMaxMB),
           unidades_permitidas: unidades,
           afectaciones_permitidas: afectaciones,
         },
       });
       setCfg(updated);
-      setPrecioMaximo(updated.precio_maximo ?? "");
+      applyConfigToForm(updated, formSetters);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (e) {
@@ -106,6 +194,15 @@ export function ConfigCatalogoAdmin() {
       setSaving(false);
     }
   }
+
+  const canSave =
+    !saving &&
+    !loading &&
+    unidades.length > 0 &&
+    afectaciones.length > 0 &&
+    precioMinimo.trim() !== "" &&
+    cargaMaxFilas.trim() !== "" &&
+    cargaMaxMB.trim() !== "";
 
   return (
     <>
@@ -140,103 +237,128 @@ export function ConfigCatalogoAdmin() {
         {loading ? (
           <p style={{ margin: 0, color: "var(--color-warm-gray)" }}>Cargando…</p>
         ) : (
-          <form onSubmit={(e) => void handleSubmit(e)}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-20)" }}>
-              <div>
-                <span style={sectionLabel}>Rango de precios (S/)</span>
-                <div style={{ display: "flex", gap: "var(--spacing-16)", flexWrap: "wrap" }}>
-                  <div style={{ flex: "1 1 200px" }}>
-                    <Input
-                      label="Precio mínimo"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={precioMinimo}
-                      onChange={(e) => setPrecioMinimo(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div style={{ flex: "1 1 200px" }}>
-                    <Input
-                      label="Precio máximo (vacío = sin límite)"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={precioMaximo}
-                      onChange={(e) => setPrecioMaximo(e.target.value)}
-                      placeholder="Sin límite"
-                    />
-                  </div>
+          <form onSubmit={(e) => void handleSubmit(e)} style={sectionGap}>
+            <p style={{ margin: 0, fontSize: "var(--text-body)", color: "var(--color-warm-gray)" }}>
+              Reglas para alta/edición de productos y carga masiva. No modifica productos ya
+              guardados.
+            </p>
+
+            <div>
+              <h2 style={sectionTitle}>Rango de precios (S/)</h2>
+              <div style={fieldRow}>
+                <div style={fieldCol}>
+                  <Input
+                    label="Precio mínimo"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={precioMinimo}
+                    onChange={(e) => setPrecioMinimo(e.target.value)}
+                    required
+                  />
+                </div>
+                <div style={fieldCol}>
+                  <Input
+                    label="Precio máximo (vacío = sin límite)"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={precioMaximo}
+                    onChange={(e) => setPrecioMaximo(e.target.value)}
+                    placeholder="Sin límite"
+                  />
                 </div>
               </div>
+            </div>
 
-              <div>
-                <span style={sectionLabel}>Límites de carga masiva</span>
-                <div style={{ display: "flex", gap: "var(--spacing-16)", flexWrap: "wrap" }}>
-                  <div style={{ flex: "1 1 200px" }}>
-                    <Input
-                      label="Máximo de filas"
-                      type="number"
-                      min="1"
-                      max="2000"
-                      value={cargaMaxFilas}
-                      onChange={(e) => setCargaMaxFilas(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div style={{ flex: "1 1 200px" }}>
-                    <Input
-                      label="Tamaño máximo (MB)"
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={cargaMaxMB}
-                      onChange={(e) => setCargaMaxMB(e.target.value)}
-                      required
-                    />
-                  </div>
+            <div
+              style={{
+                borderTop: "1px solid var(--color-stone-border)",
+                paddingTop: "var(--spacing-16)",
+              }}
+            >
+              <h2 style={sectionTitle}>Límites de carga masiva</h2>
+              <div style={fieldRow}>
+                <div style={fieldCol}>
+                  <Input
+                    label="Máximo de filas"
+                    type="number"
+                    min="1"
+                    max="2000"
+                    value={cargaMaxFilas}
+                    onChange={(e) => setCargaMaxFilas(e.target.value)}
+                    required
+                  />
+                </div>
+                <div style={fieldCol}>
+                  <Input
+                    label="Tamaño máximo (MB)"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={cargaMaxMB}
+                    onChange={(e) => setCargaMaxMB(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
+            </div>
 
-              <div>
-                <span style={sectionLabel}>Unidades de medida permitidas</span>
-                <ChipRow
-                  options={UNIDADES_SUNAT}
-                  selected={unidades}
-                  onToggle={toggleUnidad}
-                  emptyLabel="Selecciona al menos una unidad"
-                />
-              </div>
+            <div
+              style={{
+                borderTop: "1px solid var(--color-stone-border)",
+                paddingTop: "var(--spacing-16)",
+              }}
+            >
+              <h2 style={sectionTitle}>Unidades de medida permitidas</h2>
+              <ChipRow
+                options={UNIDADES_SUNAT}
+                selected={unidades}
+                onToggle={toggleUnidad}
+                labelize={(u) => (UNIT_HINTS[u] ? `${u} · ${UNIT_HINTS[u]}` : u)}
+                emptyLabel="Selecciona al menos una unidad"
+              />
+            </div>
 
-              <div>
-                <span style={sectionLabel}>Afectaciones IGV permitidas</span>
-                <ChipRow
-                  options={AFECTACIONES_IGV}
-                  selected={afectaciones}
-                  onToggle={toggleAfectacion}
-                  labelize={(a) => a.charAt(0).toUpperCase() + a.slice(1)}
-                  emptyLabel="Selecciona al menos una afectación"
-                />
-              </div>
+            <div
+              style={{
+                borderTop: "1px solid var(--color-stone-border)",
+                paddingTop: "var(--spacing-16)",
+              }}
+            >
+              <h2 style={sectionTitle}>Afectaciones IGV permitidas</h2>
+              <ChipRow
+                options={AFECTACIONES_IGV}
+                selected={afectaciones}
+                onToggle={toggleAfectacion}
+                labelize={(a) => a.charAt(0).toUpperCase() + a.slice(1)}
+                emptyLabel="Selecciona al menos una afectación"
+              />
+            </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-12)" }}>
-                <Button
-                  type="submit"
-                  disabled={saving || unidades.length === 0 || afectaciones.length === 0}
-                >
-                  {saving ? "Guardando…" : "Guardar cambios"}
-                </Button>
-                {success ? (
-                  <span style={{ fontSize: "var(--text-body)", color: "var(--color-cyan-edge)" }}>
-                    Guardado correctamente
-                  </span>
-                ) : null}
-                {error ? (
-                  <span style={{ fontSize: "var(--text-body)", color: "var(--color-error-text)" }}>
-                    {error}
-                  </span>
-                ) : null}
-              </div>
+            <div
+              style={{
+                borderTop: "1px solid var(--color-stone-border)",
+                paddingTop: "var(--spacing-16)",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "var(--spacing-12)",
+              }}
+            >
+              <Button type="submit" disabled={!canSave}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </Button>
+              {success ? (
+                <span style={{ fontSize: "var(--text-body)", color: "var(--color-cyan-edge)" }}>
+                  Guardado correctamente
+                </span>
+              ) : null}
+              {error ? (
+                <span style={{ fontSize: "var(--text-body)", color: "var(--color-error-text)" }}>
+                  {error}
+                </span>
+              ) : null}
             </div>
           </form>
         )}
@@ -267,10 +389,16 @@ function ChipRow({
             <label
               key={opt}
               style={{
-                ...chipBase,
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "6px 12px",
+                borderRadius: "var(--radius-buttons)",
+                fontSize: "var(--text-body)",
+                cursor: "pointer",
+                userSelect: "none",
+                border: `1px solid ${active ? "var(--color-ink-black)" : "var(--color-stone-border)"}`,
                 background: active ? "var(--color-sky-wash)" : "var(--color-pure-white)",
                 color: active ? "var(--color-ink-black)" : "var(--color-warm-gray)",
-                borderColor: active ? "var(--color-ink-black)" : "var(--color-stone-border)",
                 fontWeight: active ? "var(--font-weight-medium)" : "var(--font-weight-regular)",
               }}
             >
@@ -286,7 +414,14 @@ function ChipRow({
         })}
       </div>
       {selected.length === 0 ? (
-        <span style={{ fontSize: "13px", color: "var(--color-error-text)", marginTop: 4, display: "block" }}>
+        <span
+          style={{
+            fontSize: "13px",
+            color: "var(--color-error-text)",
+            marginTop: "var(--spacing-8)",
+            display: "block",
+          }}
+        >
           {emptyLabel}
         </span>
       ) : null}

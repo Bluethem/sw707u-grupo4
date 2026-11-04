@@ -131,3 +131,68 @@ func TestLoad_WorkerEnvOverrides(t *testing.T) {
 		t.Fatalf("SunatFakeMode=%q", cfg.SunatFakeMode)
 	}
 }
+
+func TestConfig_HasSunatCreds(t *testing.T) {
+	cfg := config.Config{}
+	if cfg.HasSunatCreds() {
+		t.Fatal("empty should be incomplete")
+	}
+	cfg = config.Config{
+		SunatRUC: "20123456789", SunatSOLUser: "USER", SunatSOLPassword: "x",
+		SunatCertPath: "/c.pfx", SunatCertPassword: "p",
+	}
+	if !cfg.HasSunatCreds() {
+		t.Fatal("expected complete")
+	}
+}
+
+func TestConfig_ResolveSunatEndpoint_FakeWhenIncomplete(t *testing.T) {
+	cfg := config.Config{SunatEnv: "beta"}
+	mode, url, err := cfg.ResolveSunatEndpoint()
+	if err != nil || mode != "fake" || url != "" {
+		t.Fatalf("mode=%q url=%q err=%v", mode, url, err)
+	}
+}
+
+func TestConfig_ResolveSunatEndpoint_Beta(t *testing.T) {
+	cfg := config.Config{
+		SunatRUC: "20123456789", SunatSOLUser: "U", SunatSOLPassword: "p",
+		SunatCertPath: "/c.pfx", SunatCertPassword: "x",
+		SunatEnv: "beta",
+	}
+	mode, url, err := cfg.ResolveSunatEndpoint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "beta" || url != config.DefaultSunatBetaURL {
+		t.Fatalf("mode=%q url=%q", mode, url)
+	}
+}
+
+func TestConfig_ResolveSunatEndpoint_ProductionRequiresAllow(t *testing.T) {
+	cfg := config.Config{
+		SunatRUC: "20123456789", SunatSOLUser: "U", SunatSOLPassword: "p",
+		SunatCertPath: "/c.pfx", SunatCertPassword: "x",
+		SunatEnv: "production", SunatAllowProduction: false,
+	}
+	if _, _, err := cfg.ResolveSunatEndpoint(); err == nil {
+		t.Fatal("expected error without allow flag")
+	}
+	cfg.SunatAllowProduction = true
+	mode, url, err := cfg.ResolveSunatEndpoint()
+	if err != nil || mode != "production" || url != config.DefaultSunatProdURL {
+		t.Fatalf("mode=%q url=%q err=%v", mode, url, err)
+	}
+}
+
+func TestLoad_SunatMinIntervalDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("SUNAT_MIN_INTERVAL", "")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SunatMinInterval != 30*time.Second {
+		t.Fatalf("SunatMinInterval=%v", cfg.SunatMinInterval)
+	}
+}

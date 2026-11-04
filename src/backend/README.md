@@ -170,7 +170,7 @@ curl -sS "$API_BASE/api/v1/productos/<PRODUCTO_ID>/movimientos?limit=20" \
 
 `PATCH` no permite cambiar `codigo` ni `controla_stock`. Los ajustes `salida` con cantidad mayor al saldo responden HTTP 409.
 
-## Worker M6 (outbox → SUNAT fake)
+## Worker M6 (outbox → SUNAT fake o beta)
 
 El worker consume `outbox_envios` y actualiza el estado del comprobante. **No requiere Redis** (solo `DATABASE_URL`).
 
@@ -182,7 +182,27 @@ Variables útiles:
 | `WORKER_BATCH_SIZE` | `10` | Jobs por `RunOnce` |
 | `WORKER_MAX_INTENTOS` | `5` | Reintentos antes de `failed` |
 | `WORKER_BACKOFF_BASE` | `1s` | Base del backoff exponencial |
-| `SUNAT_FAKE_MODE` | `accept` | `accept`, `reject` o `error` (simulación local) |
+| `SUNAT_FAKE_MODE` | `accept` | Solo si no hay credenciales reales: `accept`, `reject` o `error` |
+
+### SUNAT beta / producción (opcional)
+
+Si están **todas** estas variables, se usa el cliente SOAP real (y firma PKCS#12 en la API):
+
+| Variable | Descripción |
+|---|---|
+| `SUNAT_RUC` | RUC emisor |
+| `SUNAT_SOL_USER` | Usuario SOL (secundario preferible) |
+| `SUNAT_SOL_PASSWORD` | Clave SOL |
+| `SUNAT_CERT_PATH` | Ruta al `.pfx` / `.p12` |
+| `SUNAT_CERT_PASSWORD` | Password del certificado |
+| `SUNAT_ENV` | `beta` (default) o `production` |
+| `SUNAT_WS_URL` | Override opcional del endpoint |
+| `SUNAT_MIN_INTERVAL` | Mínimo entre llamadas WS (default `30s`) — evita abuso de beta |
+| `SUNAT_ALLOW_PRODUCTION` | Debe ser `true` además de `SUNAT_ENV=production` |
+
+- **Beta:** `https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService` — solo pruebas de estructura XML; no estrés ni ráfagas (SUNAT puede bloquear la IP).
+- **Producción:** impacto tributario real; requiere `SUNAT_ENV=production` + `SUNAT_ALLOW_PRODUCTION=true`.
+- Sin el set mínimo → Fake (comportamiento histórico).
 
 ```bash
 export DATABASE_URL='postgres://ff:ff@127.0.0.1:55432/flowfacture?sslmode=disable'
@@ -190,9 +210,9 @@ export SUNAT_FAKE_MODE=accept
 go run ./cmd/worker
 ```
 
-Con Docker Compose: `docker compose up -d postgres worker` (el servicio `worker` ya define `SUNAT_FAKE_MODE=accept`).
+Con Docker Compose: `docker compose up -d postgres worker` (sin credenciales SUNAT → fake). Monta certificados en `./data/certs` y apunta `SUNAT_CERT_PATH=/certs/tu.pfx` si usas beta.
 
-Tras emitir un comprobante (API), el worker lo procesa hasta `ACEPTADO`/`RECHAZADO` según el modo fake.
+Tras emitir un comprobante (API), el worker lo procesa hasta `ACEPTADO`/`RECHAZADO` según Fake o la respuesta CDR de SUNAT.
 
 ### Tests M6 (worker + outbox)
 
